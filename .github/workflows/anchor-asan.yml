@@ -1,0 +1,59 @@
+name: Private ROOT RNTuple anchor invariant probe
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'tests/**'
+      - '.github/workflows/anchor-asan.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  address-sanitizer:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install prebuilt ROOT for an isolated runtime check
+        run: |
+          python -m pip install --disable-pip-version-check --only-binary=:all: ROOT
+          python -c 'import ROOT; print("ROOT version:", ROOT.gROOT.GetVersion())'
+      - name: Construct a legitimate RNTuple then one bounded metadata mismatch
+        run: python tests/prepare_cases.py cases
+      - name: Build tiny reader with AddressSanitizer
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT_BIN="$(python -c 'import ROOT; from pathlib import Path; print(Path(ROOT.__file__).resolve().parent / "bin")')"
+          test -x "$ROOT_BIN/root-config"
+          export PATH="$ROOT_BIN:$PATH"
+          ROOT_LIBDIR="$(root-config --libdir)"
+          echo "LD_LIBRARY_PATH=$ROOT_LIBDIR:${LD_LIBRARY_PATH:-}" >> "$GITHUB_ENV"
+          g++ -std=c++17 -O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined \
+            tests/open_ntuple.cxx -o open_ntuple \
+            $(root-config --cflags --libs) -lROOTNTuple
+      - name: Check valid input with same ASan reader
+        run: ASAN_OPTIONS=detect_leaks=0:halt_on_error=1 ./open_ntuple cases/baseline.root
+      - name: Observe reader response to a controlled size-invariant violation
+        shell: bash
+        run: |
+          set +e
+          ASAN_OPTIONS=detect_leaks=0:halt_on_error=1:abort_on_error=1 \
+            timeout 30s ./open_ntuple cases/length-mismatch.root > probe.log 2>&1
+          code=$?
+          set -e
+          echo "Reader exit code: $code"
+          sed -n '1,85p' probe.log
+          if grep -Fq 'AddressSanitizer: heap-buffer-overflow' probe.log; then
+            echo 'CONFIRMED: ASan detected a heap-buffer-overflow during RNTuple open'
+          else
+            echo 'NOT CONFIRMED: no heap-buffer-overflow signature; inspect the failure and validation path'
+            exit 1
+          fi
