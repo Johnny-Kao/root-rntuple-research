@@ -43,10 +43,13 @@ jobs:
           echo "Expected ROOT reader header:"
           python -c 'import os; from pathlib import Path; p=Path(os.environ["ROOT_HOME"])/"include/ROOT/RNTupleReader.hxx"; print(str(p), "exists=", p.is_file())'
           ROOT_LIBDIR="$ROOT_HOME/lib"
-          echo "LD_LIBRARY_PATH=$ROOT_LIBDIR:${LD_LIBRARY_PATH:-}" >> "$GITHUB_ENV"
+          ROOT_VENDOR_LIBDIR="$ROOT_HOME/../root.libs"
+          test -d "$ROOT_VENDOR_LIBDIR"
+          echo "LD_LIBRARY_PATH=$ROOT_LIBDIR:$ROOT_VENDOR_LIBDIR:${LD_LIBRARY_PATH:-}" >> "$GITHUB_ENV"
           g++ -std=c++17 -O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined \
             -I"$ROOT_HOME/include" tests/open_ntuple.cxx -o open_ntuple \
-            -L"$ROOT_LIBDIR" $(root-config --cflags --libs) -lROOTNTuple
+            -L"$ROOT_LIBDIR" -Wl,-rpath-link,"$ROOT_VENDOR_LIBDIR" \
+            $(root-config --cflags --libs) -lROOTNTuple
       - name: Check valid input with same ASan reader
         run: ASAN_OPTIONS=detect_leaks=0:halt_on_error=1 ./open_ntuple cases/baseline.root
       - name: Observe reader response to a controlled size-invariant violation
