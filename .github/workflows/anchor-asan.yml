@@ -1,4 +1,4 @@
-name: Private ROOT RNTuple anchor invariant probe
+name: ROOT RNTuple reader invariant CI
 
 on:
   workflow_dispatch:
@@ -31,14 +31,22 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ROOT_BIN="$(python -c 'import ROOT; from pathlib import Path; print(Path(ROOT.__file__).resolve().parent / "bin")')"
+          ROOT_HOME="$(python -c 'import ROOT; from pathlib import Path; print(Path(ROOT.__file__).resolve().parent)')"
+          export ROOT_HOME
+          ROOT_BIN="$ROOT_HOME/bin"
           test -x "$ROOT_BIN/root-config"
           export PATH="$ROOT_BIN:$PATH"
-          ROOT_LIBDIR="$(root-config --libdir)"
+          echo "PyPI ROOT home: $ROOT_HOME"
+          echo "root-config include: $(root-config --incdir)"
+          echo "root-config cflags: $(root-config --cflags)"
+          echo "root-config libdir: $(root-config --libdir)"
+          echo "Expected ROOT reader header:"
+          python -c 'import os; from pathlib import Path; p=Path(os.environ["ROOT_HOME"])/"include/ROOT/RNTupleReader.hxx"; print(str(p), "exists=", p.is_file())'
+          ROOT_LIBDIR="$ROOT_HOME/lib"
           echo "LD_LIBRARY_PATH=$ROOT_LIBDIR:${LD_LIBRARY_PATH:-}" >> "$GITHUB_ENV"
           g++ -std=c++17 -O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined \
-            tests/open_ntuple.cxx -o open_ntuple \
-            $(root-config --cflags --libs) -lROOTNTuple
+            -I"$ROOT_HOME/include" tests/open_ntuple.cxx -o open_ntuple \
+            -L"$ROOT_LIBDIR" $(root-config --cflags --libs) -lROOTNTuple
       - name: Check valid input with same ASan reader
         run: ASAN_OPTIONS=detect_leaks=0:halt_on_error=1 ./open_ntuple cases/baseline.root
       - name: Observe reader response to a controlled size-invariant violation
