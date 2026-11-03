@@ -39,4 +39,11 @@ jobs:
         run: |
           mkdir -p /tmp/root-numeric-case
           cd /tmp/root-numeric-case
-          "$GITHUB_WORKSPACE/merge_numeric_invariants"
+          failures=0
+          for case_id in 0 1 2 3; do
+            echo "::group::Case $case_id"
+            "$GITHUB_WORKSPACE/merge_numeric_invariants" "$case_id" || failures=$((failures+1))
+            echo "::endgroup::"
+          done
+          echo "Failed cases: $failures/4"
+          test "$failures" -eq 0
