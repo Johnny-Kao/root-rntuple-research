@@ -63,12 +63,16 @@ static void run(const std::string &prefix, bool aChecksum, bool bChecksum, int a
    verify(out, rows);
    std::cout << "PASS " << prefix << " 260 rows exact" << std::endl;
 }
-int main() {
+int main(int argc, char **argv) {
+   if (argc != 2) { std::cerr << "usage: test <case 0..3>\n"; return 64; }
    try {
-      run("checksum_off_to_on", false, true, 0, 505);
-      run("checksum_on_to_off", true, false, 505, 0);
-      run("both_checksums_on", true, true, 0, 505);
-      run("both_checksums_off", false, false, 505, 0);
+      switch (std::stoi(argv[1])) {
+         case 0: run("checksum_off_to_on", false, true, 0, 505); break;
+         case 1: run("checksum_on_to_off", true, false, 505, 0); break;
+         case 2: run("both_checksums_on", true, true, 0, 505); break;
+         case 3: run("both_checksums_off", false, false, 505, 0); break;
+         default: return 64;
+      }
       return 0;
    } catch (const std::exception &e) {
       std::cerr << "FAIL " << e.what() << std::endl;
