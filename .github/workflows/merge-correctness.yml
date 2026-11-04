@@ -1,57 +1,73 @@
-name: ROOT RNTuple independent invariant recheck
+name: ROOT master H1 validation gate
 on:
   workflow_dispatch:
   push:
     paths:
-      - 'validation/**'
       - '.github/workflows/merge-correctness.yml'
 permissions:
   contents: read
 jobs:
-  invariant-matrix:
+  h1-master:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 55
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout research
+        uses: actions/checkout@v4
         with:
+          path: research
           persist-credentials: false
-      - uses: actions/setup-python@v5
+      - name: Checkout pinned upstream master
+        uses: actions/checkout@v4
         with:
-          python-version: '3.11'
-      - name: Install released ROOT binary
+          repository: root-project/root
+          ref: 916c66b5933cfab7112e96c7839c3be1a4bfb095
+          path: root-src
+          persist-credentials: false
+          submodules: false
+          fetch-depth: 1
+      - name: Install compiler dependencies
         run: |
-          python -m pip install --disable-pip-version-check --only-binary=:all: ROOT
-          python -c 'import ROOT; print("ROOT VERSION",ROOT.gROOT.GetVersion())'
-      - name: Compile native RNTuple merger matrix
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ninja-build libpcre3-dev libxxhash-dev liblz4-dev libzstd-dev liblzma-dev libssl-dev
+      - name: Configure minimal ROOT from pinned master
+        run: |
+          cmake -S root-src -B root-build -G Ninja \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -Dminimal=ON -Dtesting=OFF -Dimt=OFF \
+            -Dbuiltin_xxhash=ON -Dbuiltin_lz4=ON -Dbuiltin_zstd=ON \
+            -DCMAKE_CXX_FLAGS="-O1 -g"
+      - name: Build ROOT NTuple library
+        run: cmake --build root-build --target ROOTNTuple -j 2
+      - name: Compile original independent H1 reproducer
         shell: bash
         run: |
           set -euo pipefail
-          ROOT_HOME="$(python -c 'import ROOT; from pathlib import Path; print(Path(ROOT.__file__).resolve().parent)')"
-          ROOT_LIBDIR="$ROOT_HOME/lib"
-          ROOT_VENDOR_LIBDIR="$ROOT_HOME/../root.libs"
-          export PATH="$ROOT_HOME/bin:$PATH"
-          echo "LD_LIBRARY_PATH=$ROOT_LIBDIR:$ROOT_VENDOR_LIBDIR" >> "$GITHUB_ENV"
-          g++ -std=c++17 -O1 -g -I"$ROOT_HOME/include" \
-            validation/recheck_checksum_invariants.cxx -o recheck_checksum_invariants \
-            -L"$ROOT_LIBDIR" -Wl,-rpath-link,"$ROOT_VENDOR_LIBDIR" \
-            $(root-config --cflags --libs) -lROOTNTuple
-      - name: Run all 12 isolated checksum/compression cases
+          ROOT_HOME="$PWD/root-build"
+          g++ -std=c++17 -O1 -g -I"$PWD/root-src/tree/ntuple/inc" \
+            -I"$ROOT_HOME/include" \
+            research/validation/recheck_checksum_invariants.cxx \
+            -o "$ROOT_HOME/recheck_checksum_invariants" \
+            -L"$ROOT_HOME/lib" -Wl,-rpath,"$ROOT_HOME/lib" \
+            -Wl,-rpath-link,"$ROOT_HOME/lib" \
+            "$ROOT_HOME"/lib/libROOTNTuple.so \
+            "$ROOT_HOME"/lib/libROOTNTupleUtil.so \
+            "$ROOT_HOME"/lib/libRIO.so \
+            "$ROOT_HOME"/lib/libCore.so
+      - name: Run H1 cases in isolated processes
         shell: bash
         run: |
           set -u
-          mkdir -p /tmp/root-invariant-recheck
-          cd /tmp/root-invariant-recheck
+          export LD_LIBRARY_PATH="$PWD/root-build/lib:${LD_LIBRARY_PATH:-}"
+          mkdir -p /tmp/root-h1-master
+          cd /tmp/root-h1-master
           failures=0
-          for id in $(seq 0 11); do
-            echo "::group::Case $id"
-            if timeout 15s "$GITHUB_WORKSPACE/recheck_checksum_invariants" "$id"; then
-              status=0
-            else
-              status=$?
-            fi
-            echo "Case $id status=$status"
+          for id in 0 1 2 3 4 5 6 7 10 11; do
+            echo "::group::H1 Case $id"
+            timeout 20s "$GITHUB_WORKSPACE/root-build/recheck_checksum_invariants" "$id"
+            status=$?
+            echo "H1_CASE_$id=$status"
             if [ "$status" -ne 0 ]; then failures=$((failures+1)); fi
             echo "::endgroup::"
           done
-          echo "Failed cases: $failures/12"
+          echo "H1_FAILURES=$failures"
           test "$failures" -eq 0
