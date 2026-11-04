@@ -39,10 +39,6 @@ jobs:
           trace = '      std::fprintf(stderr, "H1TRACE func packed=%zu buf=%zu ck=%zu src=%d dst=%d elems=%zu\\n", size_t(bytesPacked), size_t(fBufSize), size_t(checksumSize), int(fSealedPage.GetHasChecksum()), int(fWriteOpts.GetEnablePageChecksums()), size_t(fSealedPage.GetNElements()));'
           assert orig in s
           s = s.replace(orig, trace + chr(10) + orig)
-          orig2 = "            const auto bufSize = uncompressedSize + dstChecksumSize;"
-          trace2 = '            std::fprintf(stderr, "H1TRACE alloc uncomp=%zu packed=%zu buf=%zu dst=%d src=%d\\n", size_t(uncompressedSize), size_t(srcColElement->GetPackedSize(sealedPage.GetNElements())), size_t(bufSize), int(mergeData.fDestination.GetWriteOptions().GetEnablePageChecksums()), int(sealedPage.GetHasChecksum()));'
-          assert orig2 in s
-          s = s.replace(orig2, orig2 + chr(10) + trace2)
           p.write_text(s)
           PY
           echo H1_PATCH_WITH_DIAGNOSTICS_APPLIED
