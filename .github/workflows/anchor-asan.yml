@@ -31,7 +31,7 @@ jobs:
           from pathlib import Path
           p = Path("tree/ntuple/src/RNTupleMerger.cxx")
           s = p.read_text()
-          s = s.replace("#include <algorithm>", "#include <algorithm>\\n#include <cstdio>")
+          s = s.replace("#include <algorithm>", "#include <algorithm>\n#include <cstdio>")
           s = s.replace("      assert(fBufSize >= bytesPacked + checksumSize);", """      std::fprintf(stderr, "H1TRACE func packed=%zu buf=%zu ck=%zu sourceCk=%d destCk=%d elems=%zu\\n", size_t(bytesPacked), size_t(fBufSize), size_t(checksumSize), int(fSealedPage.GetHasChecksum()), int(fWriteOpts.GetEnablePageChecksums()), size_t(fSealedPage.GetNElements()));
       assert(fBufSize >= bytesPacked + checksumSize);""")
           s = s.replace("            const auto bufSize = uncompressedSize + dstChecksumSize;", """            const auto bufSize = uncompressedSize + dstChecksumSize;
