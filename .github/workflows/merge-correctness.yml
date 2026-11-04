@@ -44,8 +44,11 @@ jobs:
           failures=0
           for id in $(seq 0 11); do
             echo "::group::Case $id"
-            timeout 15s "$GITHUB_WORKSPACE/recheck_checksum_invariants" "$id"
-            status=$?
+            if timeout 15s "$GITHUB_WORKSPACE/recheck_checksum_invariants" "$id"; then
+              status=0
+            else
+              status=$?
+            fi
             echo "Case $id status=$status"
             if [ "$status" -ne 0 ]; then failures=$((failures+1)); fi
             echo "::endgroup::"
