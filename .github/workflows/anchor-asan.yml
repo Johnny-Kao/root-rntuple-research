@@ -1,70 +1,73 @@
-name: ROOT RNTuple reader invariant CI
-
+name: ROOT master H1 validation gate
 on:
   workflow_dispatch:
   push:
-    paths:
-      - 'tests/**'
-      - '.github/workflows/anchor-asan.yml'
-
+    branches:
+      - 'research/master-h1-gate-20261105'
 permissions:
   contents: read
-
 jobs:
-  address-sanitizer:
+  h1-master:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 55
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout research
+        uses: actions/checkout@v4
         with:
+          path: research
           persist-credentials: false
-      - uses: actions/setup-python@v5
+      - name: Checkout pinned upstream master
+        uses: actions/checkout@v4
         with:
-          python-version: '3.11'
-      - name: Install prebuilt ROOT for an isolated runtime check
+          repository: root-project/root
+          ref: 916c66b5933cfab7112e96c7839c3be1a4bfb095
+          path: root-src
+          persist-credentials: false
+          submodules: false
+          fetch-depth: 1
+      - name: Install compiler dependencies
         run: |
-          python -m pip install --disable-pip-version-check --only-binary=:all: ROOT
-          python -c 'import ROOT; print("ROOT version:", ROOT.gROOT.GetVersion())'
-      - name: Construct a legitimate RNTuple then one bounded metadata mismatch
-        run: python tests/prepare_cases.py cases
-      - name: Build tiny reader with AddressSanitizer
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ninja-build nlohmann-json3-dev libfreetype-dev libpcre3-dev libxxhash-dev liblz4-dev libzstd-dev liblzma-dev libssl-dev
+      - name: Configure minimal ROOT from pinned master
+        run: |
+          cmake -S root-src -B root-build -G Ninja \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -Dminimal=ON -Dtesting=OFF -Dimt=OFF \
+            -Dbuiltin_xxhash=ON -Dbuiltin_lz4=ON -Dbuiltin_zstd=ON \
+            -DCMAKE_CXX_FLAGS="-O1 -g"
+      - name: Build ROOT NTuple library
+        run: cmake --build root-build --target ROOTNTuple -j 2
+      - name: Compile original independent H1 reproducer
         shell: bash
         run: |
           set -euo pipefail
-          ROOT_HOME="$(python -c 'import ROOT; from pathlib import Path; print(Path(ROOT.__file__).resolve().parent)')"
-          export ROOT_HOME
-          ROOT_BIN="$ROOT_HOME/bin"
-          test -x "$ROOT_BIN/root-config"
-          export PATH="$ROOT_BIN:$PATH"
-          echo "PyPI ROOT home: $ROOT_HOME"
-          echo "root-config include: $(root-config --incdir)"
-          echo "root-config cflags: $(root-config --cflags)"
-          echo "root-config libdir: $(root-config --libdir)"
-          echo "Expected ROOT reader header:"
-          python -c 'import os; from pathlib import Path; p=Path(os.environ["ROOT_HOME"])/"include/ROOT/RNTupleReader.hxx"; print(str(p), "exists=", p.is_file())'
-          ROOT_LIBDIR="$ROOT_HOME/lib"
-          ROOT_VENDOR_LIBDIR="$ROOT_HOME/../root.libs"
-          test -d "$ROOT_VENDOR_LIBDIR"
-          echo "LD_LIBRARY_PATH=$ROOT_LIBDIR:$ROOT_VENDOR_LIBDIR:${LD_LIBRARY_PATH:-}" >> "$GITHUB_ENV"
-          g++ -std=c++17 -O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined \
-            -I"$ROOT_HOME/include" tests/open_ntuple.cxx -o open_ntuple \
-            -L"$ROOT_LIBDIR" -Wl,-rpath-link,"$ROOT_VENDOR_LIBDIR" \
-            $(root-config --cflags --libs) -lROOTNTuple
-      - name: Check valid input with same ASan reader
-        run: ASAN_OPTIONS=detect_leaks=0:halt_on_error=1 ./open_ntuple cases/baseline.root
-      - name: Observe reader response to a controlled size-invariant violation
+          ROOT_HOME="$PWD/root-build"
+          g++ -std=c++17 -O1 -g -I"$PWD/root-src/tree/ntuple/inc" \
+            -I"$ROOT_HOME/include" \
+            research/validation/recheck_checksum_invariants.cxx \
+            -o "$ROOT_HOME/recheck_checksum_invariants" \
+            -L"$ROOT_HOME/lib" -Wl,-rpath,"$ROOT_HOME/lib" \
+            -Wl,-rpath-link,"$ROOT_HOME/lib" \
+            "$ROOT_HOME"/lib/libROOTNTuple.so \
+            "$ROOT_HOME"/lib/libROOTNTupleUtil.so \
+            "$ROOT_HOME"/lib/libRIO.so \
+            "$ROOT_HOME"/lib/libCore.so
+      - name: Run H1 cases in isolated processes
         shell: bash
         run: |
-          set +e
-          ASAN_OPTIONS=detect_leaks=0:halt_on_error=1:abort_on_error=1 \
-            timeout 30s ./open_ntuple cases/length-mismatch.root > probe.log 2>&1
-          code=$?
-          set -e
-          echo "Reader exit code: $code"
-          sed -n '1,85p' probe.log
-          if grep -Fq 'AddressSanitizer: heap-buffer-overflow' probe.log; then
-            echo 'CONFIRMED: ASan detected a heap-buffer-overflow during RNTuple open'
-          else
-            echo 'NOT CONFIRMED: no heap-buffer-overflow signature; inspect the failure and validation path'
-            exit 1
-          fi
+          set -u
+          export LD_LIBRARY_PATH="$PWD/root-build/lib:${LD_LIBRARY_PATH:-}"
+          mkdir -p /tmp/root-h1-master
+          cd /tmp/root-h1-master
+          failures=0
+          for id in 0 1 2 3 4 5 6 7 10 11; do
+            echo "::group::H1 Case $id"
+            timeout 20s "$GITHUB_WORKSPACE/root-build/recheck_checksum_invariants" "$id"
+            status=$?
+            echo "H1_CASE_$id=$status"
+            if [ "$status" -ne 0 ]; then failures=$((failures+1)); fi
+            echo "::endgroup::"
+          done
+          echo "H1_FAILURES=$failures"
+          test "$failures" -eq 0
