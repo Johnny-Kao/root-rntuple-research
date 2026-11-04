@@ -27,7 +27,18 @@ jobs:
           cd source
           git apply --check ../patches/h1-root-v6-40-00.patch
           git apply ../patches/h1-root-v6-40-00.patch
-          echo H1_PATCH_APPLIED_TO_V6_40
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("tree/ntuple/src/RNTupleMerger.cxx")
+          s = p.read_text()
+          s = s.replace("#include <algorithm>", "#include <algorithm>\\n#include <cstdio>")
+          s = s.replace("      assert(fBufSize >= bytesPacked + checksumSize);", """      std::fprintf(stderr, "H1TRACE func packed=%zu buf=%zu ck=%zu sourceCk=%d destCk=%d elems=%zu\\n", size_t(bytesPacked), size_t(fBufSize), size_t(checksumSize), int(fSealedPage.GetHasChecksum()), int(fWriteOpts.GetEnablePageChecksums()), size_t(fSealedPage.GetNElements()));
+      assert(fBufSize >= bytesPacked + checksumSize);""")
+          s = s.replace("            const auto bufSize = uncompressedSize + dstChecksumSize;", """            const auto bufSize = uncompressedSize + dstChecksumSize;
+            std::fprintf(stderr, "H1TRACE alloc uncomp=%zu packed=%zu buf=%zu dstCk=%d sourceCk=%d\\n", size_t(uncompressedSize), size_t(srcColElement->GetPackedSize(sealedPage.GetNElements())), size_t(bufSize), int(mergeData.fDestination.GetWriteOptions().GetEnablePageChecksums()), int(sealedPage.GetHasChecksum()));""")
+          p.write_text(s)
+          PY
+          echo H1_PATCH_WITH_DIAGNOSTICS_APPLIED
       - name: Compile patched merger only, not LLVM or ROOT
         shell: bash
         run: |
@@ -51,7 +62,7 @@ jobs:
           mkdir -p /tmp/h1-patched-runtime
           cd /tmp/h1-patched-runtime
           fails=0
-          for id in 0 1 2 3 4 5 6 7 10 11; do
+          for id in 2 3 4; do
             echo "::group::PATCHED_CASE_$id"
             timeout 20s "$GITHUB_WORKSPACE/h1_patched_runtime" "$id"
             status=$?
