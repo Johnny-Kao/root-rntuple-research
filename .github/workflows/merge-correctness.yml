@@ -28,7 +28,7 @@ jobs:
       - name: Install compiler dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ninja-build libpcre3-dev libxxhash-dev liblz4-dev libzstd-dev liblzma-dev libssl-dev
+          sudo apt-get install -y -qq ninja-build nlohmann-json3-dev libfreetype-dev libpcre3-dev libxxhash-dev liblz4-dev libzstd-dev liblzma-dev libssl-dev
       - name: Configure minimal ROOT from pinned master
         run: |
           cmake -S root-src -B root-build -G Ninja \
