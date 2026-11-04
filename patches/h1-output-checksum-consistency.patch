@@ -1,0 +1,19 @@
+diff --git a/tree/ntuple/src/RNTupleMerger.cxx b/tree/ntuple/src/RNTupleMerger.cxx
+--- a/tree/ntuple/src/RNTupleMerger.cxx
++++ b/tree/ntuple/src/RNTupleMerger.cxx
+@@ -312,7 +312,8 @@ struct RChangeCompressionFunc {
+       } else {
+          nBytesZipped = bytesPacked;
+       }
+-      fSealedPage = {fBuffer, nBytesZipped + checksumSize, fSealedPage.GetNElements(), fSealedPage.GetHasChecksum()};
++      fSealedPage = {fBuffer, nBytesZipped + checksumSize, fSealedPage.GetNElements(),
++                     fWriteOpts.GetEnablePageChecksums()};
+       fSealedPage.ChecksumIfEnabled();
+@@ -1448,7 +1449,8 @@ ROOT::RResult<void> RNTupleMergeStrategyDefault::MergeCommonColumns(
+          if (needsRecompressing) {
+             const auto uncompressedSize = srcColElement->GetSize() * sealedPage.GetNElements();
+             auto &buffer = sealedPageData.fBuffers[pageBufferBaseIdx + pageIdx];
+-            const auto bufSize = uncompressedSize + checksumSize;
++            const auto dstChecksumSize =
++               fDestination.GetWriteOptions().GetEnablePageChecksums() * RPageStorage::kNBytesPageChecksum;
++            const auto bufSize = uncompressedSize + dstChecksumSize;
