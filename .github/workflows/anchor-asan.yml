@@ -1,41 +1,63 @@
-name: ROOT H1 patch apply gate
+name: ROOT H1 patched runtime comparison
 on:
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
-  patch-check:
+  patched-runtime:
     runs-on: ubuntu-24.04
-    timeout-minutes: 8
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
-          path: research
           persist-credentials: false
-      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
-          repository: root-project/root
-          ref: 916c66b5933cfab7112e96c7839c3be1a4bfb095
-          path: root-src
-          persist-credentials: false
-          sparse-checkout: |
-            tree/ntuple/src/RNTupleMerger.cxx
-          sparse-checkout-cone-mode: false
-      - name: Apply H1 source patch and check whitespace
+          python-version: '3.11'
+      - name: Install binary ROOT 6.40
+        run: |
+          python -m pip install --only-binary=:all: --disable-pip-version-check ROOT==0.1a12
+          python -c 'import ROOT; assert ROOT.gROOT.GetVersion().startswith("6.40."); print("ROOT",ROOT.gROOT.GetVersion())'
+      - name: Prepare same-version patched merger translation unit
         shell: bash
         run: |
           set -euo pipefail
-          cd root-src
-          git apply --check ../research/patches/h1-output-checksum-consistency.patch
-          git apply ../research/patches/h1-output-checksum-consistency.patch
-          git diff --check
-          git diff --stat
-          python3 - <<'PY'
-          from pathlib import Path
-          src=Path("tree/ntuple/src/RNTupleMerger.cxx").read_text()
-          assert "const auto dstChecksumSize =" in src
-          assert "const auto bufSize = uncompressedSize + dstChecksumSize;" in src
-          assert "fWriteOpts.GetEnablePageChecksums()};" in src
-          assert "fSealedPage.VerifyChecksumIfEnabled().ThrowOnError();" in src
-          print("H1_PATCH_APPLY_AND_CONTRACT_CHECK_PASS")
-          PY
+          mkdir -p source/tree/ntuple/src
+          curl -fsSL --retry 2 --max-time 40 https://raw.githubusercontent.com/root-project/root/v6-40-00/tree/ntuple/src/RNTupleMerger.cxx -o source/tree/ntuple/src/RNTupleMerger.cxx
+          cd source
+          git apply --check ../patches/h1-root-v6-40-00.patch
+          git apply ../patches/h1-root-v6-40-00.patch
+          echo H1_PATCH_APPLIED_TO_V6_40
+      - name: Compile patched merger only, not LLVM or ROOT
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT_HOME="$(python -c 'import ROOT; from pathlib import Path; print(Path(ROOT.__file__).resolve().parent)')"
+          export PATH="$ROOT_HOME/bin:$PATH"
+          echo "LD_LIBRARY_PATH=$ROOT_HOME/lib:$ROOT_HOME/../root.libs" >> "$GITHUB_ENV"
+          g++ -std=c++17 -O1 -g -fPIC -I"$ROOT_HOME/include" \
+             $(root-config --cflags) -c source/tree/ntuple/src/RNTupleMerger.cxx -o rntuple_merger_patched.o
+          g++ -std=c++17 -O1 -g -I"$ROOT_HOME/include" \
+             validation/recheck_checksum_invariants.cxx rntuple_merger_patched.o \
+             -o h1_patched_runtime \
+             -Wl,--export-dynamic -L"$ROOT_HOME/lib" -Wl,-rpath-link,"$ROOT_HOME/../root.libs" \
+             $(root-config --cflags --libs) -lROOTNTuple
+          nm -C h1_patched_runtime | grep -m 1 'RNTupleMerger::Merge('
+      - name: Run all H1 control and affected cases with patched object
+        shell: bash
+        run: |
+          set +e
+          set -u
+          mkdir -p /tmp/h1-patched-runtime
+          cd /tmp/h1-patched-runtime
+          fails=0
+          for id in 0 1 2 3 4 5 6 7 10 11; do
+            echo "::group::PATCHED_CASE_$id"
+            timeout 20s "$GITHUB_WORKSPACE/h1_patched_runtime" "$id"
+            status=$?
+            echo "PATCHED_CASE_$id=$status"
+            if [ "$status" -ne 0 ]; then fails=$((fails+1)); fi
+            echo "::endgroup::"
+          done
+          echo "PATCHED_FAILURES=$fails"
+          test "$fails" -eq 0
