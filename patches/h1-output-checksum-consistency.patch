@@ -1,7 +1,7 @@
 diff --git a/tree/ntuple/src/RNTupleMerger.cxx b/tree/ntuple/src/RNTupleMerger.cxx
 --- a/tree/ntuple/src/RNTupleMerger.cxx
 +++ b/tree/ntuple/src/RNTupleMerger.cxx
-@@ -312,7 +312,8 @@ struct RChangeCompressionFunc {
+@@ -312,7 +312,8 @@
        } else {
           nBytesZipped = bytesPacked;
        }
@@ -9,7 +9,9 @@ diff --git a/tree/ntuple/src/RNTupleMerger.cxx b/tree/ntuple/src/RNTupleMerger.c
 +      fSealedPage = {fBuffer, nBytesZipped + checksumSize, fSealedPage.GetNElements(),
 +                     fWriteOpts.GetEnablePageChecksums()};
        fSealedPage.ChecksumIfEnabled();
-@@ -1448,7 +1449,8 @@ ROOT::RResult<void> RNTupleMergeStrategyDefault::MergeCommonColumns(
+    }
+ };
+@@ -1449,7 +1450,9 @@
           if (needsRecompressing) {
              const auto uncompressedSize = srcColElement->GetSize() * sealedPage.GetNElements();
              auto &buffer = sealedPageData.fBuffers[pageBufferBaseIdx + pageIdx];
@@ -17,3 +19,6 @@ diff --git a/tree/ntuple/src/RNTupleMerger.cxx b/tree/ntuple/src/RNTupleMerger.c
 +            const auto dstChecksumSize =
 +               fDestination.GetWriteOptions().GetEnablePageChecksums() * RPageStorage::kNBytesPageChecksum;
 +            const auto bufSize = uncompressedSize + dstChecksumSize;
+             // NOTE: we currently allocate the max possible size for this buffer and don't shrink it afterward.
+             // We might want to introduce an option that trades speed for memory usage and shrink the buffer to fit
+             // the actual data size after recompressing.
