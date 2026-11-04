@@ -39,6 +39,10 @@ jobs:
           trace = '      std::fprintf(stderr, "H1TRACE func packed=%zu buf=%zu ck=%zu src=%d dst=%d elems=%zu\\n", size_t(bytesPacked), size_t(fBufSize), size_t(checksumSize), int(fSealedPage.GetHasChecksum()), int(fWriteOpts.GetEnablePageChecksums()), size_t(fSealedPage.GetNElements()));'
           assert orig in s
           s = s.replace(orig, trace + chr(10) + orig)
+          target = "            buffer = MakeUninitArray<std::uint8_t>(bufSize);"
+          assert target in s, "missing allocation site"
+          diag = '            std::fprintf(stderr, "H1TRACE caller buf=%zu unpacked=%zu srcCk=%d dstCk=%d\\n", size_t(bufSize), size_t(uncompressedSize), int(sealedPage.GetHasChecksum()), int(mergeData.fDestination.GetWriteOptions().GetEnablePageChecksums()));'
+          s = s.replace(target, diag + chr(10) + target)
           p.write_text(s)
           PY
           echo H1_PATCH_WITH_DIAGNOSTICS_APPLIED
