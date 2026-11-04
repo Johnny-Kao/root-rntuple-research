@@ -1,6 +1,8 @@
 # ROOT RNTuple invariant recheck — 2026-11-05 JST
 
-**Status:** Source-audited hypotheses. **No new independent defect dynamically confirmed.** No upstream Issue/PR/contact; private research branch only.
+> **2026-11-05 更新（以新報告為準）：** 此文為 CI 執行前的研究假設與計畫。完整 12 組已在 ROOT 6.40.00 測試：6 PASS / 6 Abort 或 SIGSEGV；Repo 已公開。請參閱 [完整測試矩陣與程式碼分析](RNTUPLE_MERGE_CHECKSUM_FINDINGS_2026-11-05.md)。當前 master 尚未動態驗證。
+
+**Historical status (pre-full-matrix):** Source-audited hypotheses only. This document predates the full CI results; see the updated report above. No upstream Issue/PR/contact.
 
 ## Scope and boundaries
 - Upstream: `root-project/root`, both `v6-40-00` and `master` read from GitHub.
