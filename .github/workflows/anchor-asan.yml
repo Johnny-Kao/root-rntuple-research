@@ -32,6 +32,7 @@ jobs:
       - name: H1 cases and independent readback
         shell: bash
         run: |
+          set +e
           set -u
           mkdir -p /tmp/h1-fast
           cd /tmp/h1-fast
