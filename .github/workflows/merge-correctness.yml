@@ -1,4 +1,4 @@
-name: ROOT RNTuple numeric correctness research
+name: ROOT RNTuple independent invariant recheck
 on:
   workflow_dispatch:
   push:
@@ -8,7 +8,7 @@ on:
 permissions:
   contents: read
 jobs:
-  numeric-invariants:
+  invariant-matrix:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -18,11 +18,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Install ROOT binary
+      - name: Install released ROOT binary
         run: |
           python -m pip install --disable-pip-version-check --only-binary=:all: ROOT
-          python -c 'import ROOT; print("ROOT",ROOT.gROOT.GetVersion())'
-      - name: Compile test on GitHub runner (no local machine execution)
+          python -c 'import ROOT; print("ROOT VERSION",ROOT.gROOT.GetVersion())'
+      - name: Compile native RNTuple merger matrix
         shell: bash
         run: |
           set -euo pipefail
@@ -30,20 +30,25 @@ jobs:
           ROOT_LIBDIR="$ROOT_HOME/lib"
           ROOT_VENDOR_LIBDIR="$ROOT_HOME/../root.libs"
           export PATH="$ROOT_HOME/bin:$PATH"
-          echo "LD_LIBRARY_PATH=$ROOT_LIBDIR:$ROOT_VENDOR_LIBDIR:${LD_LIBRARY_PATH:-}" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$ROOT_LIBDIR:$ROOT_VENDOR_LIBDIR" >> "$GITHUB_ENV"
           g++ -std=c++17 -O1 -g -I"$ROOT_HOME/include" \
-            validation/merge_numeric_invariants.cxx -o merge_numeric_invariants \
+            validation/recheck_checksum_invariants.cxx -o recheck_checksum_invariants \
             -L"$ROOT_LIBDIR" -Wl,-rpath-link,"$ROOT_VENDOR_LIBDIR" \
             $(root-config --cflags --libs) -lROOTNTuple
-      - name: Generate valid ROOT files, merge and compare every row
+      - name: Run all 12 isolated checksum/compression cases
+        shell: bash
         run: |
-          mkdir -p /tmp/root-numeric-case
-          cd /tmp/root-numeric-case
+          set -u
+          mkdir -p /tmp/root-invariant-recheck
+          cd /tmp/root-invariant-recheck
           failures=0
-          for case_id in 0 1 2 3; do
-            echo "::group::Case $case_id"
-            "$GITHUB_WORKSPACE/merge_numeric_invariants" "$case_id" || failures=$((failures+1))
+          for id in $(seq 0 11); do
+            echo "::group::Case $id"
+            timeout 15s "$GITHUB_WORKSPACE/recheck_checksum_invariants" "$id"
+            status=$?
+            echo "Case $id status=$status"
+            if [ "$status" -ne 0 ]; then failures=$((failures+1)); fi
             echo "::endgroup::"
           done
-          echo "Failed cases: $failures/4"
+          echo "Failed cases: $failures/12"
           test "$failures" -eq 0
