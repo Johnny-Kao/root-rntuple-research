@@ -16,3 +16,10 @@ Tests run in GitHub Actions and generate their own data. No local Mac testing is
 - [Merge compatibility test branch](../../tree/research/rntuple-invariant-recheck-20261105)
 
 The repository is independent research material, not an official ROOT project.
+
+## Merge checksum research result (2026-11-05)
+
+ROOT 6.40.00: 12-case input/output compatibility matrix completed; 6 cases passed and 6 terminated abnormally. Dynamic testing against the current ROOT master and sanitizer attribution are still pending. **These are research observations, not six separate confirmed bugs or security disclosures.**
+
+- [Detailed 12-case matrix and invariant analysis](https://github.com/Johnny-Kao/root-rntuple-research/blob/research/rntuple-invariant-recheck-20261105/research/RNTUPLE_MERGE_CHECKSUM_FINDINGS_2026-11-05.md)
+- [CI evidence](https://github.com/Johnny-Kao/root-rntuple-research/actions/runs/41866296529)
