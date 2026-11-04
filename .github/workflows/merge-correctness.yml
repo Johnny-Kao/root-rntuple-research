@@ -2,8 +2,8 @@ name: ROOT master H1 validation gate
 on:
   workflow_dispatch:
   push:
-    paths:
-      - '.github/workflows/merge-correctness.yml'
+    branches:
+      - 'research/master-h1-gate-20261105'
 permissions:
   contents: read
 jobs:
