@@ -41,7 +41,7 @@ jobs:
       - name: Install only compilation prerequisites
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ninja-build cmake libxxhash-dev liblz4-dev libzstd-dev liblzma-dev libpcre2-dev libssl-dev libz3-dev libtbb-dev > /tmp/h1-apt.log 2>&1 || { tail -70 /tmp/h1-apt.log; exit 1; }
+          sudo apt-get install -y -qq ninja-build cmake libxxhash-dev liblz4-dev libzstd-dev liblzma-dev libpcre2-dev libssl-dev libz3-dev libtbb-dev nlohmann-json3-dev libfreetype-dev > /tmp/h1-apt.log 2>&1 || { tail -70 /tmp/h1-apt.log; exit 1; }
       - name: Configure focused native ROOTNTuple build
         shell: bash
         run: |
