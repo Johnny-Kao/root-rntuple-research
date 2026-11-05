@@ -26,7 +26,7 @@ jobs:
           b = s.index('struct RTaskVisitor', a)
           f = s[a:b]
           c = s.index('RNTupleMergeStrategyDefault::MergeCommonColumns')
-          d = s.index('} // end of loop over common columns', c)
+          d = s.index('RNTupleMergeStrategyDefault::MergeSourceClusters', c)
           merger = s[c:d]
           print('H1_MASTER_FLAGS', {
             'old_output_flag': 'fSealedPage.GetNElements(), fSealedPage.GetHasChecksum()};' in f,
