@@ -42,6 +42,7 @@ jobs:
           test "$(stat -c %s /tmp/official_root.tar.gz)" -eq "$TOTAL"
           gzip -t /tmp/official_root.tar.gz
           echo 'H1_BINARY_ARCHIVE_VERIFIED'
+          echo 'H1_TESTING_OFFICIAL_UNMODIFIED_642_RC1'
           tar -xzf /tmp/official_root.tar.gz -C "$GITHUB_WORKSPACE"
           ROOT_HOME="$GITHUB_WORKSPACE/root"
           source "$ROOT_HOME/bin/thisroot.sh"
