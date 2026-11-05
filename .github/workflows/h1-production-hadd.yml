@@ -61,4 +61,23 @@ jobs:
           else
             echo "H1_PRODUCTION_PASS"
           fi
+          echo "H1_FACTORIZATION_START"
+          "$GITHUB_WORKSPACE/h1_hadd_cli" generate a_off_same.root 1 0 505
+          "$GITHUB_WORKSPACE/h1_hadd_cli" generate a_on_diff.root 1 1 0
+          "$GITHUB_WORKSPACE/h1_hadd_cli" generate b_off_same.root 2 0 505
+          for spec in "mixed_equal a_off_same.root source_b.root" "all_off a_off_same.root b_off_same.root" "all_on_diff a_on_diff.root source_b.root"; do
+            set -- $spec
+            label=$1; a=$2; b=$3
+            timeout 30s hadd -f505 "${label}.root" "$a" "$b" > "${label}.log" 2>&1
+            code=$?
+            echo "H1_MATRIX_${label}_EXIT=$code"
+            grep -E 'Fatal:|Assertion|Warning in|Error in' "${label}.log" | tail -8 || true
+            if [ "$code" -eq 0 ]; then
+              "$GITHUB_WORKSPACE/h1_hadd_cli" "${label}.root"
+              echo "H1_MATRIX_${label}_READ=$?"
+            else
+              echo "H1_MATRIX_${label}_SKIP_READ"
+            fi
+          done
+          echo "H1_FACTORIZATION_END"
           test "$status" -eq 0 && test "$read_status" -eq 0
