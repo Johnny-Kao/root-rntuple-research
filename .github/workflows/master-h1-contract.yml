@@ -1,0 +1,72 @@
+name: H1 latest-master gated build and direct regression
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  master-h1:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch exact upstream master and audit source contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --filter=blob:none --single-branch https://github.com/root-project/root.git upstream-root
+          git -C upstream-root rev-parse HEAD | tee MASTER_SHA
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('upstream-root/tree/ntuple/src/RNTupleMerger.cxx')
+          s = p.read_text()
+          a = s.index('struct RChangeCompressionFunc')
+          b = s.index('struct RTaskVisitor', a)
+          f = s[a:b]
+          c = s.index('RNTupleMergeStrategyDefault::MergeCommonColumns')
+          d = s.index('} // end of loop over common columns', c)
+          merger = s[c:d]
+          print('H1_MASTER_FLAGS', {
+            'old_output_flag': 'fSealedPage.GetNElements(), fSealedPage.GetHasChecksum()};' in f,
+            'destination_checksum_bytes': 'fWriteOpts.GetEnablePageChecksums() * sizeof(std::uint64_t)' in f,
+            'allocation_source_checksum': 'const auto bufSize = uncompressedSize + checksumSize;' in merger,
+            'compression_contract': 'different from that of the' in s,
+          })
+          assert 'fSealedPage.GetNElements(), fSealedPage.GetHasChecksum()};' in f
+          assert 'const auto bufSize = uncompressedSize + checksumSize;' in merger
+          print('H1_MASTER_SOURCE_CONTRACT_CONFLICT_CONFIRMED')
+          PY
+      - name: Install only compilation prerequisites
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ninja-build cmake libxxhash-dev liblz4-dev libzstd-dev liblzma-dev libpcre2-dev libssl-dev libz3-dev libtbb-dev > /tmp/h1-apt.log 2>&1 || { tail -70 /tmp/h1-apt.log; exit 1; }
+      - name: Configure focused native ROOTNTuple build
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S upstream-root -B master-build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release -Dminimal=ON -Droot7=ON -Dtesting=OFF \
+            -Dpyroot=OFF -Dx11=OFF -Dhttp=OFF -Dcuda=OFF -Dfail-on-missing=OFF
+          ninja -C master-build -n ROOTNTuple > /tmp/ntuple-build-plan.txt
+          jobs=$(grep -c '^\[' /tmp/ntuple-build-plan.txt || true)
+          echo "H1_MASTER_TARGET_PLAN=$jobs"
+          tail -4 /tmp/ntuple-build-plan.txt
+          if [ "$jobs" -gt 1200 ]; then
+            echo "H1_MASTER_BUILD_GATE=TOO_LARGE_NO_DYNAMIC_EXECUTION"
+            exit 22
+          fi
+      - name: Build just ROOTNTuple and run affected cases (no whole ROOT build)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake --build master-build --target ROOTNTuple --parallel 4
+          sed 's/namespace RE = ROOT::Experimental::Internal;/namespace RE = ROOT::Internal;/' validation/recheck_checksum_invariants.cxx > /tmp/h1_master_case.cxx
+          source master-build/bin/thisroot.sh
+          g++ -std=c++17 -O1 -g /tmp/h1_master_case.cxx -o /tmp/h1_master_case \
+            $(root-config --cflags --libs) -lROOTNTuple
+          mkdir -p /tmp/master-h1-cases
+          cd /tmp/master-h1-cases
+          for ix in 2 3 4 5 7; do
+            echo "::group::H1_MASTER_CASE_$ix"
+            timeout 30s /tmp/h1_master_case "$ix"
+            echo "::endgroup::"
+          done
