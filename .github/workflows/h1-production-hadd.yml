@@ -1,0 +1,56 @@
+name: H1 production hadd CLI unpatched ROOT
+on:
+  workflow_dispatch:
+  push:
+    branches: [research/h1-checksum-patch-20261105]
+permissions:
+  contents: read
+jobs:
+  hadd-public-entry:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install unmodified ROOT 6.40.00 and compile CLI harness
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --only-binary=:all: --disable-pip-version-check ROOT==0.1a12
+          ROOT_HOME="$(python -c 'import ROOT; from pathlib import Path; print(Path(ROOT.__file__).resolve().parent)')"
+          echo "$ROOT_HOME/bin" >> "$GITHUB_PATH"
+          echo "LD_LIBRARY_PATH=$ROOT_HOME/lib:$ROOT_HOME/../root.libs" >> "$GITHUB_ENV"
+          export PATH="$ROOT_HOME/bin:$PATH"
+          root-config --version
+          which hadd
+          g++ -std=c++17 -O1 -I"$ROOT_HOME/include" validation/h1_hadd_cli.cxx -o h1_hadd_cli -L"$ROOT_HOME/lib" -Wl,-rpath-link,"$ROOT_HOME/../root.libs" $(root-config --cflags --libs) -lROOTNTuple
+      - name: Exercise actual public hadd CLI, record corruption/crash/value mismatch
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p /tmp/h1-prod-hadd
+          cd /tmp/h1-prod-hadd
+          "$GITHUB_WORKSPACE/h1_hadd_cli" generate source_a.root 1 0 0
+          "$GITHUB_WORKSPACE/h1_hadd_cli" generate source_b.root 2 1 505
+          echo "H1_PRODUCTION_COMMAND=hadd -f505 merged.root source_a.root source_b.root"
+          timeout 50s hadd -f505 merged.root source_a.root source_b.root > hadd.log 2>&1
+          status=$?
+          echo "H1_HADD_EXIT=$status"
+          tail -45 hadd.log
+          if [ -f merged.root ]; then
+            echo "H1_OUTPUT_BYTES=$(stat -c %s merged.root)"
+            "$GITHUB_WORKSPACE/h1_hadd_cli" merged.root
+            read_status=$?
+            echo "H1_READBACK_EXIT=$read_status"
+          else
+            echo "H1_OUTPUT_ABSENT"
+            read_status=88
+          fi
+          if [ "$status" -ne 0 ] || [ "$read_status" -ne 0 ]; then
+            echo "H1_PRODUCTION_FAILURE_REPRODUCED"
+          else
+            echo "H1_PRODUCTION_PASS"
+          fi
+          test "$status" -eq 0 && test "$read_status" -eq 0
