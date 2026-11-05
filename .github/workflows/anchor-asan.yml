@@ -27,9 +27,9 @@ jobs:
           set -euo pipefail
           mkdir -p source/tree/ntuple/src
           curl -fsSL --retry 2 --max-time 40 https://raw.githubusercontent.com/root-project/root/v6-40-00/tree/ntuple/src/RNTupleMerger.cxx -o source/tree/ntuple/src/RNTupleMerger.cxx
+          git apply --check --directory=source patches/h1-root-v6-40-00.patch
+          git apply --directory=source patches/h1-root-v6-40-00.patch
           cd source
-          git apply --check ../patches/h1-root-v6-40-00.patch
-          git apply ../patches/h1-root-v6-40-00.patch
           python3 - <<'PY'
           from pathlib import Path
           p = Path("tree/ntuple/src/RNTupleMerger.cxx")
