@@ -1,3 +1,11 @@
+## Final validated result — 2026-11-05
+
+PASS: [Actions #42032809017](https://github.com/Johnny-Kao/root-rntuple-research/actions/runs/42032809017), ROOT 6.40.00: 10/10 cases passed, each 260/260 exact values. Source patch `patches/h1-root-v6-40-00.patch` is self-contained: destination checksum page flag, destination-sized buffer allocation, and destination-sized reseal assertion. CI asserts all three modifications exist in the actual compiled source. The preceding failure was caused by `git apply` using the parent git worktree rather than the downloaded `source/` directory; the verified command uses `git apply --directory=source`.
+
+This does not validate modern master, public hadd/TFileMerger entry points, or security impact. Research repo restored Private and confirmed after tests. No upstream PR.
+
+---
+
 # H1 patched runtime evidence — 2026-11-05
 
 ## Goal
