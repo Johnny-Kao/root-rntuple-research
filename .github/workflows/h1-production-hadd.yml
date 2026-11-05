@@ -1,4 +1,4 @@
-name: H1 production hadd CLI unpatched ROOT
+name: H1 production hadd CLI unpatched ROOT (public entry)
 on:
   workflow_dispatch:
   push:
