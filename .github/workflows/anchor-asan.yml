@@ -41,7 +41,7 @@ jobs:
           s = s.replace(orig, trace + chr(10) + orig)
           target = "            buffer = MakeUninitArray<std::uint8_t>(bufSize);"
           assert target in s, "missing allocation site"
-          diag = '            std::fprintf(stderr, "H1TRACE caller buf=%zu unpacked=%zu srcCk=%d dstCk=%d\\n", size_t(bufSize), size_t(uncompressedSize), int(sealedPage.GetHasChecksum()), int(mergeData.fDestination.GetWriteOptions().GetEnablePageChecksums()));'
+          diag = '            std::fprintf(stderr, "H1TRACE caller uncomp=%zu dstCkBytes=%zu checksumConstant=%zu buf=%zu srcCk=%d dstCk=%d\\n", size_t(uncompressedSize), size_t(dstChecksumSize), size_t(RPageStorage::kNBytesPageChecksum), size_t(bufSize), int(sealedPage.GetHasChecksum()), int(mergeData.fDestination.GetWriteOptions().GetEnablePageChecksums()));'
           s = s.replace(target, diag + chr(10) + target)
           p.write_text(s)
           PY
