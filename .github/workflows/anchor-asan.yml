@@ -63,6 +63,10 @@ jobs:
           page_trace = '      std::fprintf(stderr, "H1_SEALED bytes=%zu data=%zu chk=%d zipped=%zu packed=%zu\\n", size_t(fSealedPage.GetBufferSize()), size_t(fSealedPage.GetDataSize()), int(fSealedPage.GetHasChecksum()), size_t(nBytesZipped), size_t(bytesPacked));'
           assert page_marker in s
           s = s.replace(page_marker, page_marker + chr(10) + page_trace, 1)
+          old_reseal_assert = "fBufSize >= fSealedPage.GetDataSize() + fSealedPage.GetHasChecksum() * sizeof(std::uint64_t)"
+          new_reseal_assert = "fBufSize >= fSealedPage.GetDataSize() + fWriteOpts.GetEnablePageChecksums() * sizeof(std::uint64_t)"
+          assert old_reseal_assert in s, "reseal size assertion not found"
+          s = s.replace(old_reseal_assert, new_reseal_assert, 1)
           p.write_text(s)
           PY
           echo H1_PATCH_WITH_DIAGNOSTICS_APPLIED
