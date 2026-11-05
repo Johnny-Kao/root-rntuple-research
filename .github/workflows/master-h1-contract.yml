@@ -1,6 +1,9 @@
 name: H1 latest-master gated build and direct regression
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - research/h1-checksum-patch-20261105
 permissions:
   contents: read
 jobs:
