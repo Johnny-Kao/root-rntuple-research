@@ -92,7 +92,7 @@ jobs:
           mkdir -p /tmp/h1-patched-runtime
           cd /tmp/h1-patched-runtime
           fails=0
-          for id in 2; do
+          for id in 0 1 2 3 4 5 6 7 10 11; do
             echo "::group::PATCHED_CASE_$id"
             timeout 20s "$GITHUB_WORKSPACE/h1_patched_runtime" "$id"
             status=$?
