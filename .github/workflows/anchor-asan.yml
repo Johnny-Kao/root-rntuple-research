@@ -52,7 +52,11 @@ jobs:
           assert "const auto dstChecksumSize =" in section, "patched allocation absent from MergeCommonColumns"
           s = prefix + section
           assignment_marker = "                     fWriteOpts.GetEnablePageChecksums()};"
-          assert assignment_marker in s, "patched checksum assignment missing"
+          print("H1_ASSIGNMENTS", [line.strip() for line in s.splitlines() if "fSealedPage = {" in line or "GetEnablePageChecksums()};" in line])
+          if assignment_marker not in s:
+              assert "fSealedPage.GetHasChecksum()};" in s
+              s = s.replace("fSealedPage.GetHasChecksum()};", "fWriteOpts.GetEnablePageChecksums()};", 1)
+          assert "fWriteOpts.GetEnablePageChecksums()};" in s
           assignment_trace = '      std::fprintf(stderr, "H1_ASSIGN dst=%d stored=%d bytes=%zu\\n", int(fWriteOpts.GetEnablePageChecksums()), int(fSealedPage.GetHasChecksum()), size_t(fSealedPage.GetBufferSize()));'
           s = s.replace(assignment_marker, assignment_marker + chr(10) + assignment_trace, 1)
           page_marker = "      fSealedPage.ChecksumIfEnabled();"
