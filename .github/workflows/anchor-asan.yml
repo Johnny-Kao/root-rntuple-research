@@ -34,40 +34,16 @@ jobs:
           from pathlib import Path
           p = Path("tree/ntuple/src/RNTupleMerger.cxx")
           s = p.read_text()
+          assert "fWriteOpts.GetEnablePageChecksums()};" in s, "H1 checksum flag fix missing from patch"
+          assert "fBufSize >= fSealedPage.GetDataSize() + fWriteOpts.GetEnablePageChecksums() * sizeof(std::uint64_t)" in s, "H1 reseal fix missing from patch"
+          assert "const auto dstChecksumSize =" in s, "H1 destination allocation fix missing from patch"
+          assert "const auto bufSize = uncompressedSize + dstChecksumSize;" in s
           s = s.replace("#include <algorithm>", "#include <algorithm>" + chr(10) + "#include <cstdio>")
-          orig = "      assert(fBufSize >= bytesPacked + checksumSize);"
-          trace = '      std::fprintf(stderr, "H1TRACE func packed=%zu buf=%zu ck=%zu src=%d dst=%d elems=%zu\\n", size_t(bytesPacked), size_t(fBufSize), size_t(checksumSize), int(fSealedPage.GetHasChecksum()), int(fWriteOpts.GetEnablePageChecksums()), size_t(fSealedPage.GetNElements()));'
-          assert orig in s
-          s = s.replace(orig, trace + chr(10) + orig)
-          target = "            buffer = MakeUninitArray<std::uint8_t>(bufSize);"
-          assert target in s, "missing allocation site"
-          diag = '            std::fprintf(stderr, "H1TRACE caller uncomp=%zu dstCkBytes=%zu checksumConstant=%zu buf=%zu srcCk=%d dstCk=%d\\n", size_t(uncompressedSize), size_t(dstChecksumSize), size_t(RPageStorage::kNBytesPageChecksum), size_t(bufSize), int(sealedPage.GetHasChecksum()), int(mergeData.fDestination.GetWriteOptions().GetEnablePageChecksums()));'
-          s = s.replace(target, diag + chr(10) + target)
-          section_start = s.index("RNTupleMerger::MergeCommonColumns(")
-          prefix, section = s[:section_start], s[section_start:]
-          old_alloc = "            const auto bufSize = uncompressedSize + checksumSize;"
-          if old_alloc in section:
-              new_alloc = "            const auto dstChecksumSize = mergeData.fDestination.GetWriteOptions().GetEnablePageChecksums() * RPageStorage::kNBytesPageChecksum;" + chr(10) + "            const auto bufSize = uncompressedSize + dstChecksumSize;"
-              section = section.replace(old_alloc, new_alloc, 1)
-          assert "const auto dstChecksumSize =" in section, "patched allocation absent from MergeCommonColumns"
-          s = prefix + section
-          assignment_marker = "                     fWriteOpts.GetEnablePageChecksums()};"
-          print("H1_ASSIGNMENTS", [line.strip() for line in s.splitlines() if "fSealedPage = {" in line or "GetEnablePageChecksums()};" in line])
-          if assignment_marker not in s:
-              assert "fSealedPage.GetHasChecksum()};" in s
-              s = s.replace("fSealedPage.GetHasChecksum()};", "fWriteOpts.GetEnablePageChecksums()};", 1)
-          assert "fWriteOpts.GetEnablePageChecksums()};" in s
-          assignment_trace = '      std::fprintf(stderr, "H1_ASSIGN dst=%d stored=%d bytes=%zu\\n", int(fWriteOpts.GetEnablePageChecksums()), int(fSealedPage.GetHasChecksum()), size_t(fSealedPage.GetBufferSize()));'
-          s = s.replace(assignment_marker, assignment_marker + chr(10) + assignment_trace, 1)
-          page_marker = "      fSealedPage.ChecksumIfEnabled();"
-          page_trace = '      std::fprintf(stderr, "H1_SEALED bytes=%zu data=%zu chk=%d zipped=%zu packed=%zu\\n", size_t(fSealedPage.GetBufferSize()), size_t(fSealedPage.GetDataSize()), int(fSealedPage.GetHasChecksum()), size_t(nBytesZipped), size_t(bytesPacked));'
-          assert page_marker in s
-          s = s.replace(page_marker, page_marker + chr(10) + page_trace, 1)
-          old_reseal_assert = "fBufSize >= fSealedPage.GetDataSize() + fSealedPage.GetHasChecksum() * sizeof(std::uint64_t)"
-          new_reseal_assert = "fBufSize >= fSealedPage.GetDataSize() + fWriteOpts.GetEnablePageChecksums() * sizeof(std::uint64_t)"
-          assert old_reseal_assert in s, "reseal size assertion not found"
-          s = s.replace(old_reseal_assert, new_reseal_assert, 1)
+          assert "      fSealedPage.ChecksumIfEnabled();" in s
+          s = s.replace("      fSealedPage.ChecksumIfEnabled();",
+                        '      std::fprintf(stderr, "H1_SEALED bytes=%zu data=%zu checksum=%d\\n", size_t(fSealedPage.GetBufferSize()), size_t(fSealedPage.GetDataSize()), int(fSealedPage.GetHasChecksum()));' + chr(10) + "      fSealedPage.ChecksumIfEnabled();", 1)
           p.write_text(s)
+          print("H1_PATCH_SOURCE_CONTRACT_PASS")
           PY
           echo H1_PATCH_WITH_DIAGNOSTICS_APPLIED
       - name: Compile patched merger only, not LLVM or ROOT
