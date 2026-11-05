@@ -11,6 +11,15 @@ diff --git a/tree/ntuple/src/RNTupleMerger.cxx b/tree/ntuple/src/RNTupleMerger.c
        fSealedPage.ChecksumIfEnabled();
     }
  };
+@@ -324,7 +325,7 @@
+       sealConf.fBuffer = fBuffer;
+       sealConf.fCompressionSettings = *fMergeOptions.fCompressionSettings;
+       sealConf.fWriteChecksum = fWriteOpts.GetEnablePageChecksums();
+-      assert(fBufSize >= fSealedPage.GetDataSize() + fSealedPage.GetHasChecksum() * sizeof(std::uint64_t));
++      assert(fBufSize >= fSealedPage.GetDataSize() + fWriteOpts.GetEnablePageChecksums() * sizeof(std::uint64_t));
+       auto refSealedPage = RPageSink::SealPage(sealConf);
+       fSealedPage = refSealedPage;
+    }
 @@ -914,7 +915,9 @@
           if (needsRecompressing) {
              const auto uncompressedSize = srcColElement->GetSize() * sealedPage.GetNElements();
