@@ -43,6 +43,14 @@ jobs:
           assert target in s, "missing allocation site"
           diag = '            std::fprintf(stderr, "H1TRACE caller uncomp=%zu dstCkBytes=%zu checksumConstant=%zu buf=%zu srcCk=%d dstCk=%d\\n", size_t(uncompressedSize), size_t(dstChecksumSize), size_t(RPageStorage::kNBytesPageChecksum), size_t(bufSize), int(sealedPage.GetHasChecksum()), int(mergeData.fDestination.GetWriteOptions().GetEnablePageChecksums()));'
           s = s.replace(target, diag + chr(10) + target)
+          section_start = s.index("RNTupleMerger::MergeCommonColumns(")
+          prefix, section = s[:section_start], s[section_start:]
+          old_alloc = "            const auto bufSize = uncompressedSize + checksumSize;"
+          if old_alloc in section:
+              new_alloc = "            const auto dstChecksumSize = mergeData.fDestination.GetWriteOptions().GetEnablePageChecksums() * RPageStorage::kNBytesPageChecksum;" + chr(10) + "            const auto bufSize = uncompressedSize + dstChecksumSize;"
+              section = section.replace(old_alloc, new_alloc, 1)
+          assert "const auto dstChecksumSize =" in section, "patched allocation absent from MergeCommonColumns"
+          s = prefix + section
           p.write_text(s)
           PY
           echo H1_PATCH_WITH_DIAGNOSTICS_APPLIED
