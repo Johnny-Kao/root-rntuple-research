@@ -1,3 +1,15 @@
+## 2026-11-06 retry: 6.42.00-rc1 blocked before runner allocation
+
+- Updated `.github/workflows/h1-production-hadd-642rc1.yml` for eight parallel HTTP-range downloads of CERN's official unmodified 6.42.00-rc1 binary, with part-length and gzip integrity checks. The previous single-stream download had timed out.
+- Attempted public-run validation: [Actions #42064027160](https://github.com/Johnny-Kao/root-rntuple-research/actions/runs/42064027160).
+- **No runner was allocated**. GitHub annotated: `The job was not started because recent account payments have failed or your spending limit needs to be increased.`
+- Cross-checked independent [hadd CLI #42064027113](https://github.com/Johnny-Kao/root-rntuple-research/actions/runs/42064027113) and [master contract #42064026855](https://github.com/Johnny-Kao/root-rntuple-research/actions/runs/42064026855): same runner-allocation failure. Therefore this is account-level Actions enforcement, **not a code/test regression**.
+- **No 6.42.00-rc1 or exact master runtime result**. Do not claim fixed or reproduced on the newer version.
+- Research repo restored **Private** and independently verified.
+- Once Actions availability is restored, rerun the saved official-binary workflow without modifying ROOT implementation. For exact master, source-build cost remains an unresolved 3,607 Ninja-task gate.
+
+---
+
 # Public hadd production-path validation — 2026-11-05
 
 ## Objective
