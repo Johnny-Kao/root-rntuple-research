@@ -1,3 +1,22 @@
+## 2026-11-06 — definitive official ROOT 6.42.00-rc1 production `hadd` validation
+
+**Reproduced without patching ROOT.** [GitHub Actions #42065941739](https://github.com/Johnny-Kao/root-rntuple-research/actions/runs/42065941739), Ubuntu 24.04. Used official CERN 6.42.00-rc1 binary `root_v6.42.00-rc1.Linux-ubuntu24.04-x86_64-gcc13.3.tar.gz`, 397,692,613 bytes, downloaded in eight byte-range parts, checked exact byte lengths and passed `gzip -t`. Both test input RNTuples were created by the matching ROOT version's public RNTupleWriter; merged using the real `hadd -f505` CLI. No ROOT implementation changes.
+
+Results (all include 130 entries in each input):
+- Checksum ON + ON, both compression 505: success, 260/260 exact readback.
+- Checksum ON + ON, compression 0 + 505: success, 260/260 exact readback.
+- Checksum OFF + ON, compression 505 + 505: SIGABRT exit 134.
+- Checksum OFF + ON, compression 0 + 505: SIGABRT exit 134.
+- Checksum OFF + OFF, compression 505 + 505: SIGABRT exit 134.
+
+Crash signature: `Fatal: sealedPageIt->GetHasChecksum() violated at line 1606 of /github/home/ROOT-CI/src/tree/ntuple/src/RPageStorage.cxx`. Observed incomplete 413-byte merged file, no RNTuple object; reader refused to open it.
+
+**Interpretation:** same-page dedup's checksum requirement rejects valid checksum-free source pages through a public production entry point, without needing recompression. This is separate from H1 regenerated-page checksum/size inconsistency and should not be conflated with it. Confidence of user-facing reproducible bug on 6.42 RC1: very high. It is a deterministic availability/batch integrity failure; neither silent data corruption nor CVE-grade security impact is established.
+
+This run was **not exact master**. CI job itself is marked failed because failure reproduction returns nonzero, not because setup failed. Research repo reverted and verified **Private** after the run.
+
+---
+
 ## 2026-11-06 retry: 6.42.00-rc1 blocked before runner allocation
 
 - Updated `.github/workflows/h1-production-hadd-642rc1.yml` for eight parallel HTTP-range downloads of CERN's official unmodified 6.42.00-rc1 binary, with part-length and gzip integrity checks. The previous single-stream download had timed out.
