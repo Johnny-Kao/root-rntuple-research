@@ -51,6 +51,10 @@ jobs:
               section = section.replace(old_alloc, new_alloc, 1)
           assert "const auto dstChecksumSize =" in section, "patched allocation absent from MergeCommonColumns"
           s = prefix + section
+          page_marker = "      fSealedPage.ChecksumIfEnabled();"
+          page_trace = '      std::fprintf(stderr, "H1_SEALED bytes=%zu data=%zu chk=%d zipped=%zu packed=%zu\\n", size_t(fSealedPage.GetBufferSize()), size_t(fSealedPage.GetDataSize()), int(fSealedPage.GetHasChecksum()), size_t(nBytesZipped), size_t(bytesPacked));'
+          assert page_marker in s
+          s = s.replace(page_marker, page_marker + chr(10) + page_trace, 1)
           p.write_text(s)
           PY
           echo H1_PATCH_WITH_DIAGNOSTICS_APPLIED
@@ -69,6 +73,9 @@ jobs:
              -Wl,--export-dynamic -L"$ROOT_HOME/lib" -Wl,-rpath-link,"$ROOT_HOME/../root.libs" \
              $(root-config --cflags --libs) -lROOTNTuple
           nm -C h1_patched_runtime | grep -m 1 'RNTupleMerger::Merge('
+          g++ -std=c++17 -O1 -g -I"$ROOT_HOME/include" validation/inspect_h1_pages.cxx \
+            -o h1_inspect_pages -L"$ROOT_HOME/lib" -Wl,-rpath-link,"$ROOT_HOME/../root.libs" \
+            $(root-config --cflags --libs) -lROOTNTuple
       - name: Run all H1 control and affected cases with patched object
         shell: bash
         run: |
@@ -82,6 +89,11 @@ jobs:
             timeout 20s "$GITHUB_WORKSPACE/h1_patched_runtime" "$id"
             status=$?
             echo "PATCHED_CASE_$id=$status"
+            for name in recheck_${id}_a.root recheck_${id}_b.root recheck_${id}_merged.root; do
+              if [ -f "$name" ]; then
+                "$GITHUB_WORKSPACE/h1_inspect_pages" "$name" || true
+              fi
+            done
             if [ "$status" -ne 0 ]; then fails=$((fails+1)); fi
             echo "::endgroup::"
           done
