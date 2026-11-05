@@ -29,11 +29,19 @@ jobs:
       - name: Exercise actual public hadd CLI, record corruption/crash/value mismatch
         shell: bash
         run: |
+          set +e
           set -uo pipefail
           mkdir -p /tmp/h1-prod-hadd
           cd /tmp/h1-prod-hadd
           "$GITHUB_WORKSPACE/h1_hadd_cli" generate source_a.root 1 0 0
           "$GITHUB_WORKSPACE/h1_hadd_cli" generate source_b.root 2 1 505
+          "$GITHUB_WORKSPACE/h1_hadd_cli" generate control_a.root 1 1 505
+          "$GITHUB_WORKSPACE/h1_hadd_cli" generate control_b.root 2 1 505
+          timeout 30s hadd -f505 control_merged.root control_a.root control_b.root > control_hadd.log 2>&1
+          control_status=$?
+          echo "H1_CONTROL_HADD_EXIT=$control_status"
+          tail -15 control_hadd.log
+          if [ "$control_status" -eq 0 ]; then "$GITHUB_WORKSPACE/h1_hadd_cli" control_merged.root; echo "H1_CONTROL_READ_EXIT=$?"; fi
           echo "H1_PRODUCTION_COMMAND=hadd -f505 merged.root source_a.root source_b.root"
           timeout 50s hadd -f505 merged.root source_a.root source_b.root > hadd.log 2>&1
           status=$?
