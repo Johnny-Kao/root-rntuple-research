@@ -8,7 +8,7 @@ permissions:
 jobs:
   hadd-public-entry:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 16
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -20,7 +20,28 @@ jobs:
           set -euo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y -qq libtbb12 libgsl27 libpcre2-8-0 libxxhash0 liblz4-1 libzstd1 libfreetype6 > /tmp/h1-install.txt 2>&1 || true
-          curl --retry 3 -fLsS --max-time 240 'https://root.cern/download/root_v6.42.00-rc1.Linux-ubuntu24.04-x86_64-gcc13.3.tar.gz' -o /tmp/official_root.tar.gz
+          # CERN supports HTTP byte ranges. Fetch in 8 independent parts to avoid
+          # previous single-stream 240-second timeouts, then verify gzip before use.
+          URL='https://root.cern/download/root_v6.42.00-rc1.Linux-ubuntu24.04-x86_64-gcc13.3.tar.gz'
+          TOTAL=397692613
+          CHUNK=$(( (TOTAL+7)/8 ))
+          mkdir -p /tmp/h1parts
+          for n in {0..7}; do
+            start=$((n*CHUNK))
+            end=$((start+CHUNK-1))
+            if [ "$end" -ge "$TOTAL" ]; then end=$((TOTAL-1)); fi
+            (
+              curl -fL --retry 2 --connect-timeout 25 --max-time 390 \
+                --range "${start}-${end}" "$URL" -o "/tmp/h1parts/part${n}"
+              test "$(stat -c %s "/tmp/h1parts/part${n}")" -eq "$((end-start+1))"
+              echo "H1_BINARY_PART_${n}_PASS"
+            ) &
+          done
+          wait
+          cat /tmp/h1parts/part{0..7} > /tmp/official_root.tar.gz
+          test "$(stat -c %s /tmp/official_root.tar.gz)" -eq "$TOTAL"
+          gzip -t /tmp/official_root.tar.gz
+          echo 'H1_BINARY_ARCHIVE_VERIFIED'
           tar -xzf /tmp/official_root.tar.gz -C "$GITHUB_WORKSPACE"
           ROOT_HOME="$GITHUB_WORKSPACE/root"
           source "$ROOT_HOME/bin/thisroot.sh"
