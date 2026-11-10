@@ -1,0 +1,43 @@
+name: ROOT RNTuple output checksum metadata research
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - research/checksum-output-metadata-20261110
+permissions:
+  contents: read
+jobs:
+  metadata:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install ROOT released binary
+        run: |
+          python -m pip install --disable-pip-version-check --only-binary=:all: ROOT
+          python -c 'import ROOT; print("ROOT_VERSION", ROOT.gROOT.GetVersion())'
+      - name: Compile research cases and metadata inspector
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT_HOME="$(python -c 'import ROOT; from pathlib import Path; print(Path(ROOT.__file__).resolve().parent)')"
+          ROOT_LIBDIR="$ROOT_HOME/lib"
+          ROOT_VENDOR_LIBDIR="$ROOT_HOME/../root.libs"
+          export PATH="$ROOT_HOME/bin:$PATH"
+          echo "$ROOT_HOME/bin" >> "$GITHUB_PATH"
+          echo "LD_LIBRARY_PATH=$ROOT_LIBDIR:$ROOT_VENDOR_LIBDIR" >> "$GITHUB_ENV"
+          g++ -std=c++17 -O1 -g -I"$ROOT_HOME/include" validation/recheck_checksum_invariants.cxx -o recheck_checksum_invariants -L"$ROOT_LIBDIR" -Wl,-rpath-link,"$ROOT_VENDOR_LIBDIR" $(root-config --cflags --libs) -lROOTNTuple
+          g++ -std=c++17 -O1 -g -I"$ROOT_HOME/include" validation/check_output_metadata.cxx -o check_output_metadata -L"$ROOT_LIBDIR" -Wl,-rpath-link,"$ROOT_VENDOR_LIBDIR" $(root-config --cflags --libs) -lROOTNTuple
+      - name: Validate values and on-disk page checksum flags
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/root-page-metadata
+          cd /tmp/root-page-metadata
+          "$GITHUB_WORKSPACE/recheck_checksum_invariants" 11
+          "$GITHUB_WORKSPACE/check_output_metadata" recheck_11_a.root recheck_11_b.root recheck_11_merged.root
