@@ -52,3 +52,12 @@ Do not simply change `HasChecksum` to D or enlarge the buffer alone. All three i
 - **Confirmed historically:** failures under 6.40.00 release binary.
 - **Not confirmed:** latest-master reproducer, precise OOB/security impact, silent corruption, normal hadd reachability, and correct long-term checksum policy.
 - **Decision:** P1 merits continued validation, not yet an upstream PR or a claim of fixed code. Research-only HOLD.
+
+## Historical reviewer intent in PR #20112 (important)
+
+Review comments on [#20112](https://github.com/root-project/root/pull/20112) explicitly discuss this choice:
+- `hahnjo`: `RResealFunc` uses `fSealedPage.GetHasChecksum()`; asks why pure recompression would differ.
+- `silverweed`: proposes making `RResealFunc` use `fWriteOpts.GetEnablePageChecksums()`, describing that as the **most authoritative** user-controlled option.
+- `hahnjo`: acknowledges destination options, but observes L1 fast merging is an exception.
+
+**Impact on ranking:** Candidate A is a minimal compatibility/safety patch, **not** an endorsed design. Candidate B has stronger historical alignment with the maintainer's stated option-precedence preference, but requires a defined L1 exception or an explicit change to L1 eligibility. Before coding, distinguish the actual API contract from developer preferences expressed in reviews. The safest short-term fix and the ideal long-term policy may differ.
