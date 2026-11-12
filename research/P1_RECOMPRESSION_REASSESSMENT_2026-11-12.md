@@ -61,3 +61,11 @@ Review comments on [#20112](https://github.com/root-project/root/pull/20112) exp
 - `hahnjo`: acknowledges destination options, but observes L1 fast merging is an exception.
 
 **Impact on ranking:** Candidate A is a minimal compatibility/safety patch, **not** an endorsed design. Candidate B has stronger historical alignment with the maintainer's stated option-precedence preference, but requires a defined L1 exception or an explicit change to L1 eligibility. Before coding, distinguish the actual API contract from developer preferences expressed in reviews. The safest short-term fix and the ideal long-term policy may differ.
+
+## 2026-11-12 attempted master dynamic verification — blocked by GitHub Actions billing
+
+- Added `.github/workflows/p1-master-source.yml` on this non-fork research branch to fetch upstream ROOT SHA `5281bc2342c5cba711cb507f4ef53c623ba4f942`, compile ROOT with CMake/Ninja, then execute the existing 12 independent matrix cases and upload results.
+- Run: https://github.com/Johnny-Kao/root-rntuple-research/actions/runs/43191955502
+- Run state: **failure, no job steps started**. GitHub's check annotation explicitly states: `The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings`.
+- Consequently **no ROOT checkout, build or dynamic test occurred**; this is an account/runner billing blocker, **not a ROOT regression result**. Retest once Actions compute is available, or use a separately authorized Linux runner. Do not describe source inspection as a completed runtime confirmation.
+- No upstream issue/PR/comment/push. No build on user's Mac.
