@@ -18,7 +18,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends build-essential ninja-build cmake python3 git libssl-dev zlib1g-dev liblzma-dev libzstd-dev liblz4-dev libxxhash-dev libpcre2-dev libtbb-dev
+          sudo apt-get install -y --no-install-recommends build-essential ninja-build cmake python3 git libssl-dev zlib1g-dev liblzma-dev libzstd-dev liblz4-dev libxxhash-dev libpcre2-dev libtbb-dev nlohmann-json3-dev libfreetype-dev
       - name: Fetch exact upstream master source SHA (read only)
         shell: bash
         run: |
