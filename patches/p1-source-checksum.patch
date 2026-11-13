@@ -1,4 +1,30 @@
 diff --git a/tree/ntuple/src/RNTupleMerger.cxx b/tree/ntuple/src/RNTupleMerger.cxx
 --- a/tree/ntuple/src/RNTupleMerger.cxx
 +++ b/tree/ntuple/src/RNTupleMerger.cxx
-@@ -1,5 +1,5 @@
+@@ -284,7 +284,6 @@
+    ROOT::Internal::RPageAllocator &fPageAlloc;
+    std::byte *fBuffer;
+    std::size_t fBufSize;
+-   const ROOT::RNTupleWriteOptions &fWriteOpts;
+ 
+    void operator()() const
+    {
+@@ -303,7 +303,7 @@
+       ROOT::Internal::RNTupleDecompressor::Unzip(fSealedPage.GetBuffer(), fSealedPage.GetDataSize(), bytesPacked,
+                                                  unzipBuf);
+ 
+-      const auto checksumSize = fWriteOpts.GetEnablePageChecksums() * sizeof(std::uint64_t);
++      const auto checksumSize = fSealedPage.GetHasChecksum() * RPageStorage::kNBytesPageChecksum;
+       std::size_t nBytesZipped;
+       if (fCompressionSettings != 0) {
+          assert(fBuffer != unzipBuf);
+@@ -1468,8 +1468,7 @@
+                sealedPage,
+                *fPageAlloc,
+                buffer.get(),
+-               bufSize,
+-               fDestination.GetWriteOptions()
++               bufSize
+             });
+             // clang-format on
+          }
