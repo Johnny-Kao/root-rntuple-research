@@ -1,0 +1,1 @@
+This branch is a source-file-only staging snapshot based on root-project/root master 6a167d36491cc92be9da91387312b0eed44b7095. It does not contain full ROOT history; the two following commits represent the upstream patch.
