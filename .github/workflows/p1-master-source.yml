@@ -10,7 +10,7 @@ permissions:
 jobs:
   p1-master:
     runs-on: ubuntu-24.04
-    timeout-minutes: 110
+    timeout-minutes: 95
     steps:
       - uses: actions/checkout@v4
         with:
@@ -32,8 +32,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cmake -S root-src -B root-build -G Ninja -Dminimal=ON -Droot7=ON -Dtesting=OFF -Dfail-on-missing=OFF -DCMAKE_BUILD_TYPE=RelWithDebInfo
-          cmake --build root-build --parallel 2
+          cmake -S root-src -B root-build -G Ninja -Dminimal=ON -Droot7=ON -Dtesting=OFF -Dfail-on-missing=OFF -Dcurl=OFF -DCMAKE_BUILD_TYPE=Release
+          cmake --build root-build --target ROOTNTuple --parallel 4
       - name: Compile P1 independent matrix against built ROOT
         shell: bash
         run: |
