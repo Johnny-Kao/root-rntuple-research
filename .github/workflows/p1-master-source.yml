@@ -61,7 +61,7 @@ jobs:
           done
           # ROOT is built in C++17 mode; its bundled std::__ROOT::span
           # differs at the ABI level from C++20's std::span.
-          if ! nm -D -C "$ROOTSYS/lib/libROOTNTuple.so" | grep -m1 'RNTupleMerger::Merge(std::__ROOT::span' ; then
+          if ! nm -D -C "$ROOTSYS/lib/libROOTNTuple.so" | grep -F 'RNTupleMerger::Merge(std::__ROOT::span' ; then
             echo "Expected ROOT C++17 span symbol missing; aborting before matrix compilation."
             exit 3
           fi
