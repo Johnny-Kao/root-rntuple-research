@@ -15,7 +15,7 @@
 #include <vector>
 
 namespace RI = ROOT::Internal;
-namespace RE = ROOT::Experimental::Internal;
+namespace RE = ROOT::Internal;
 struct Case {
    const char *name;
    bool aCk, bCk;
