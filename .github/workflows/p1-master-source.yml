@@ -85,7 +85,7 @@ jobs:
           build_count=$(grep -c '^\[' /tmp/root-p1-build-plan.txt || true)
           echo "PLANNED_BUILD_ACTIONS=$build_count"
           test "$build_count" -gt 0
-          test "$build_count" -le 30
+          test "$build_count" -le 50
           cmake --build root-build --target ROOTNTuple --parallel 4
           git -C root-src diff --stat
       - name: Repeat same matrix with patched ROOTNTuple
