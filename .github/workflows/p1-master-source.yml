@@ -23,7 +23,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends ninja-build cmake libssl-dev zlib1g-dev liblzma-dev libzstd-dev liblz4-dev libxxhash-dev libpcre2-dev libtbb-dev nlohmann-json3-dev libfreetype-dev
+          sudo apt-get install -y --no-install-recommends ninja-build cmake libssl-dev zlib1g-dev liblzma-dev libzstd-dev liblz4-dev libxxhash-dev libpcre2-dev libtbb-dev nlohmann-json3-dev libfreetype-dev libgtest-dev libgmock-dev
       - name: Fetch exact unchanged ROOT upstream source
         shell: bash
         run: |
@@ -79,7 +79,15 @@ jobs:
           # Fresh git checkout timestamps must not invalidate all cached objects.
           find root-src -path root-src/.git -prune -o -type f -exec touch -t 202001010000 {} +
           git -C root-src apply "$GITHUB_WORKSPACE/patches/p1-source-checksum.patch"
+          git -C root-src apply "$GITHUB_WORKSPACE/patches/p1-upstream-regression.patch"
           git -C root-src diff --check
+          # Compile ROOT's own regression test translation unit without linking
+          # the entire test suite, to catch syntax/API errors at low cost.
+          source root-build/bin/thisroot.sh
+          read -r -a root_cflags <<< "$(root-config --cflags)"
+          g++ "${root_cflags[@]}" -std=c++17 -fsyntax-only -O0 \
+            -Iroot-src/tree/ntuple/test -I"$ROOTSYS/include" \
+            root-src/tree/ntuple/test/ntuple_merger.cxx
           # Fail before an expensive rebuild if cache is stale for other reasons.
           ninja -C root-build -n ROOTNTuple | tee /tmp/root-p1-build-plan.txt
           build_count=$(grep -c '^\[' /tmp/root-p1-build-plan.txt || true)
