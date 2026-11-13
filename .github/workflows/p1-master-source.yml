@@ -37,6 +37,7 @@ jobs:
           path: root-build
           key: rootntuple-5281bc2342c5-release-minimal-nocurl-v1
       - name: Configure and compile ROOT master
+        if: steps.root-cache.outputs.cache-hit != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -58,8 +59,14 @@ jobs:
           for lib in ROOTNTuple RIO Core; do
             test -f "$ROOTSYS/lib/lib${lib}.so" || { echo "Missing required library: $lib"; exit 2; }
           done
+          # ROOT is built in C++17 mode; its bundled std::__ROOT::span
+          # differs at the ABI level from C++20's std::span.
+          if ! nm -D -C "$ROOTSYS/lib/libROOTNTuple.so" | grep -m1 'RNTupleMerger::Merge(std::__ROOT::span' ; then
+            echo "Expected ROOT C++17 span symbol missing; aborting before matrix compilation."
+            exit 3
+          fi
           read -r -a root_cflags <<< "$(root-config --cflags)"
-          g++ "${root_cflags[@]}" -std=c++20 -O1 -g \
+          g++ "${root_cflags[@]}" -std=c++17 -O1 -g \
             -I"$ROOTSYS/include" validation/recheck_checksum_invariants.cxx \
             -L"$ROOTSYS/lib" -Wl,-rpath,"$ROOTSYS/lib" \
             -lROOTNTuple -lRIO -lCore -o /tmp/p1-master-matrix
