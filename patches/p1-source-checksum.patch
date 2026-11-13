@@ -1,0 +1,4 @@
+diff --git a/tree/ntuple/src/RNTupleMerger.cxx b/tree/ntuple/src/RNTupleMerger.cxx
+--- a/tree/ntuple/src/RNTupleMerger.cxx
++++ b/tree/ntuple/src/RNTupleMerger.cxx
+@@ -1,5 +1,5 @@
