@@ -4,18 +4,27 @@ on:
 permissions:
   contents: read
 jobs:
-  p1-master:
+  compare:
     runs-on: ubuntu-24.04
-    timeout-minutes: 95
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Install build dependencies
+      - name: Restore existing compiled ROOTNTuple
+        uses: actions/cache/restore@v4
+        id: built-root
+        with:
+          path: root-build
+          key: rootntuple-5281bc2342c5-release-minimal-nocurl-v1
+          fail-on-cache-miss: true
+      - name: Install required system libraries
+        shell: bash
         run: |
+          set -euo pipefail
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends build-essential ninja-build cmake python3 git libssl-dev zlib1g-dev liblzma-dev libzstd-dev liblz4-dev libxxhash-dev libpcre2-dev libtbb-dev nlohmann-json3-dev libfreetype-dev
-      - name: Fetch exact upstream master source SHA (read only)
+          sudo apt-get install -y --no-install-recommends ninja-build cmake libssl-dev zlib1g-dev liblzma-dev libzstd-dev liblz4-dev libxxhash-dev libpcre2-dev libtbb-dev nlohmann-json3-dev libfreetype-dev
+      - name: Fetch exact unchanged ROOT upstream source
         shell: bash
         run: |
           set -euo pipefail
@@ -23,76 +32,71 @@ jobs:
           git -C root-src remote add origin https://github.com/root-project/root.git
           git -C root-src fetch --depth=1 origin 5281bc2342c5cba711cb507f4ef53c623ba4f942
           git -C root-src checkout --detach FETCH_HEAD
-          echo "ROOT_SOURCE_SHA=$(git -C root-src rev-parse HEAD)" | tee -a "$GITHUB_ENV"
-      - name: Verify P1 test selects current L2 API before expensive build
-        shell: bash
-        run: |
-          set -euo pipefail
-          grep -q 'namespace Internal' root-src/tree/ntuple/inc/ROOT/RNTupleMerger.hxx
-          grep -q 'mergeOpts.fCompressionSettings = c.outComp' validation/recheck_checksum_invariants.cxx
-          grep -q 'merger.Merge(ptrs, mergeOpts)' validation/recheck_checksum_invariants.cxx
-      - uses: actions/cache/restore@v4
-        id: root-cache
-        with:
-          path: root-build
-          key: rootntuple-5281bc2342c5-release-minimal-nocurl-v1
-      - name: Configure and compile ROOT master
-        if: steps.root-cache.outputs.cache-hit != 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          cmake -S root-src -B root-build -G Ninja -Dminimal=ON -Droot7=ON -Dtesting=OFF -Dfail-on-missing=OFF -Dcurl=OFF -DCMAKE_BUILD_TYPE=Release
-          cmake --build root-build --target ROOTNTuple --parallel 4
-      - uses: actions/cache/save@v4
-        if: steps.root-cache.outputs.cache-hit != 'true'
-        continue-on-error: true
-        with:
-          path: root-build
-          key: rootntuple-5281bc2342c5-release-minimal-nocurl-v1
-      - name: Compile P1 independent matrix against built ROOT
+          git -C root-src apply --check "$GITHUB_WORKSPACE/patches/p1-source-checksum.patch"
+          echo "ROOT_SOURCE_SHA=$(git -C root-src rev-parse HEAD)" >> "$GITHUB_ENV"
+      - name: Compile independent and public-path test drivers
         shell: bash
         run: |
           set -euo pipefail
           source root-build/bin/thisroot.sh
-          echo "ROOT version: $(root-config --version)"
-          echo "SOURCE SHA: $ROOT_SOURCE_SHA"
-          for lib in ROOTNTuple RIO Core; do
-            test -f "$ROOTSYS/lib/lib${lib}.so" || { echo "Missing required library: $lib"; exit 2; }
-          done
-          # ROOT is built in C++17 mode; its bundled std::__ROOT::span
-          # differs at the ABI level from C++20's std::span.
-          if ! nm -D -C "$ROOTSYS/lib/libROOTNTuple.so" | grep -F 'RNTupleMerger::Merge(std::__ROOT::span' ; then
-            echo "Expected ROOT C++17 span symbol missing; aborting before matrix compilation."
-            exit 3
-          fi
           read -r -a root_cflags <<< "$(root-config --cflags)"
-          g++ "${root_cflags[@]}" -std=c++17 -O1 -g \
-            -I"$ROOTSYS/include" validation/recheck_checksum_invariants.cxx \
+          for lib in ROOTNTuple RIO Core; do
+            test -f "$ROOTSYS/lib/lib${lib}.so"
+          done
+          g++ "${root_cflags[@]}" -std=c++17 -O1 -g -I"$ROOTSYS/include" \
+            validation/recheck_checksum_invariants.cxx \
             -L"$ROOTSYS/lib" -Wl,-rpath,"$ROOTSYS/lib" \
-            -lROOTNTuple -lRIO -lCore -o /tmp/p1-master-matrix
-      - name: Execute full 12 case matrix in isolated processes
+            -lROOTNTuple -lRIO -lCore -o /tmp/p1-matrix
+          g++ "${root_cflags[@]}" -std=c++17 -O1 -g -I"$ROOTSYS/include" \
+            validation/p1_tfilemerger_public.cxx \
+            -L"$ROOTSYS/lib" -Wl,-rpath,"$ROOTSYS/lib" \
+            -lROOTNTuple -lRIO -lCore -o /tmp/p1-public
+      - name: Baseline reproduce on original upstream binary
         shell: bash
         run: |
           set -uo pipefail
           source root-build/bin/thisroot.sh
-          mkdir -p "$GITHUB_WORKSPACE/p1-results"
-          cd "$GITHUB_WORKSPACE/p1-results"
+          mkdir -p "$GITHUB_WORKSPACE/p1-results/baseline"
+          cd "$GITHUB_WORKSPACE/p1-results/baseline"
+          for id in $(seq 0 11); do
+            if timeout 15s /tmp/p1-matrix "$id" >"case-$id.log" 2>&1; then status=0; else status=$?; fi
+            echo "$id,$status" | tee -a matrix.csv
+          done
+          if timeout 20s /tmp/p1-public public >public.log 2>&1; then status=0; else status=$?; fi
+          echo "public,$status" | tee -a matrix.csv
+          cat public.log
+      - name: Apply minimal patch and incrementally rebuild ROOTNTuple
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C root-src apply "$GITHUB_WORKSPACE/patches/p1-source-checksum.patch"
+          cmake -S root-src -B root-build -G Ninja \
+            -Dminimal=ON -Droot7=ON -Dtesting=OFF -Dfail-on-missing=OFF -Dcurl=OFF -DCMAKE_BUILD_TYPE=Release
+          cmake --build root-build --target ROOTNTuple --parallel 4
+          git -C root-src diff --check
+          git -C root-src diff --stat
+      - name: Repeat same matrix with patched ROOTNTuple
+        shell: bash
+        run: |
+          set -uo pipefail
+          source root-build/bin/thisroot.sh
+          mkdir -p "$GITHUB_WORKSPACE/p1-results/patched"
+          cd "$GITHUB_WORKSPACE/p1-results/patched"
           failures=0
           for id in $(seq 0 11); do
-            echo "::group::P1 matrix case $id"
-            if timeout 25s /tmp/p1-master-matrix "$id" >"case-$id.log" 2>&1; then status=0; else status=$?; fi
-            cat "case-$id.log"
-            echo "CASE $id STATUS $status"
-            echo "$id,$status" >> results.csv
-            [ "$status" -eq 0 ] || failures=$((failures+1))
-            echo "::endgroup::"
+            if timeout 15s /tmp/p1-matrix "$id" >"case-$id.log" 2>&1; then status=0; else status=$?; fi
+            echo "$id,$status" | tee -a matrix.csv
+            if [ "$status" -ne 0 ]; then failures=$((failures+1)); cat "case-$id.log"; fi
           done
-          echo "ROOT_SOURCE_SHA=$ROOT_SOURCE_SHA"
-          echo "FAILED=$failures / 12"
+          if timeout 20s /tmp/p1-public public >public.log 2>&1; then status=0; else status=$?; fi
+          echo "public,$status" | tee -a matrix.csv
+          cat public.log
+          if [ "$status" -ne 0 ]; then failures=$((failures+1)); fi
+          echo "PATCHED_FAILURES=$failures"
           test "$failures" -eq 0
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: root-p1-source-matrix
+          name: root-p1-baseline-patched-comparison
           path: p1-results/
           if-no-files-found: ignore
