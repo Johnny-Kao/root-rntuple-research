@@ -92,7 +92,11 @@ static void runOne(int ix) {
    {
       auto dest=std::make_unique<RI::RPageSinkFile>("ntuple",out,opt);
       RE::RNTupleMerger merger(std::move(dest));
-      auto r=merger.Merge(ptrs);
+      RE::RNTupleMergeOptions mergeOpts;
+      // Current master takes the requested compression from merge options,
+      // not from the destination sink's write options.
+      mergeOpts.fCompressionSettings = c.outComp;
+      auto r=merger.Merge(ptrs, mergeOpts);
       if(!r)throw std::runtime_error(std::string("MERGE_ERROR: ")+r.GetError()->GetReport());
    }
    verify(out,true,0);
