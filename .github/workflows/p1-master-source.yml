@@ -86,7 +86,7 @@ jobs:
           source root-build/bin/thisroot.sh
           read -r -a root_cflags <<< "$(root-config --cflags)"
           g++ "${root_cflags[@]}" -std=c++17 -fsyntax-only -O0 \
-            -Iroot-src/tree/ntuple/test -I"$ROOTSYS/include" \
+            -Iroot-src/tree/ntuple/test -Iroot-src/core/testsupport/inc -I"$ROOTSYS/include" \
             root-src/tree/ntuple/test/ntuple_merger.cxx
           # Fail before an expensive rebuild if cache is stale for other reasons.
           ninja -C root-build -n ROOTNTuple | tee /tmp/root-p1-build-plan.txt
