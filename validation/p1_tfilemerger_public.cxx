@@ -52,7 +52,7 @@ int main(int argc, char **argv) {
          if (!merger.Merge()) throw std::runtime_error("TFileMerger::Merge failed");
          verify(output, 260, reverseOrder);
       }
-      std::cout << "PUBLIC_TFILEMERGER_PASS 2 orders x 260 rows\\n";
+      std::cout << "PUBLIC_TFILEMERGER_PASS 2 orders x 260 rows\n";
       return 0;
    } catch (const std::exception &err) {
       std::cerr << "PUBLIC_TFILEMERGER_FAIL " << err.what() << '\n';
