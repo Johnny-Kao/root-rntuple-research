@@ -1,10 +1,6 @@
 name: ROOT P1 master source regression (research only)
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - '.github/workflows/p1-master-source.yml'
-      - 'validation/**'
 permissions:
   contents: read
 jobs:
@@ -28,12 +24,29 @@ jobs:
           git -C root-src fetch --depth=1 origin 5281bc2342c5cba711cb507f4ef53c623ba4f942
           git -C root-src checkout --detach FETCH_HEAD
           echo "ROOT_SOURCE_SHA=$(git -C root-src rev-parse HEAD)" | tee -a "$GITHUB_ENV"
+      - name: Verify P1 test selects current L2 API before expensive build
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'namespace Internal' root-src/tree/ntuple/inc/ROOT/RNTupleMerger.hxx
+          grep -q 'mergeOpts.fCompressionSettings = c.outComp' validation/recheck_checksum_invariants.cxx
+          grep -q 'merger.Merge(ptrs, mergeOpts)' validation/recheck_checksum_invariants.cxx
+      - uses: actions/cache/restore@v4
+        id: root-cache
+        with:
+          path: root-build
+          key: rootntuple-5281bc2342c5-release-minimal-nocurl-v1
       - name: Configure and compile ROOT master
         shell: bash
         run: |
           set -euo pipefail
           cmake -S root-src -B root-build -G Ninja -Dminimal=ON -Droot7=ON -Dtesting=OFF -Dfail-on-missing=OFF -Dcurl=OFF -DCMAKE_BUILD_TYPE=Release
           cmake --build root-build --target ROOTNTuple --parallel 4
+      - uses: actions/cache/save@v4
+        if: steps.root-cache.outputs.cache-hit != 'true'
+        with:
+          path: root-build
+          key: rootntuple-5281bc2342c5-release-minimal-nocurl-v1
       - name: Compile P1 independent matrix against built ROOT
         shell: bash
         run: |
@@ -41,7 +54,13 @@ jobs:
           source root-build/bin/thisroot.sh
           echo "ROOT version: $(root-config --version)"
           echo "SOURCE SHA: $ROOT_SOURCE_SHA"
-          g++ -std=c++20 -O1 -g -I"$ROOTSYS/include" validation/recheck_checksum_invariants.cxx -o /tmp/p1-master-matrix $(root-config --cflags --libs) -lROOTNTuple
+          for lib in ROOTNTuple RIO Core; do
+            test -f "$ROOTSYS/lib/lib${lib}.so" || { echo "Missing required library: $lib"; exit 2; }
+          done
+          g++ -std=c++20 -O1 -g $(root-config --cflags) \
+            -I"$ROOTSYS/include" validation/recheck_checksum_invariants.cxx \
+            -L"$ROOTSYS/lib" -Wl,-rpath,"$ROOTSYS/lib" \
+            -lROOTNTuple -lRIO -lCore -o /tmp/p1-master-matrix
       - name: Execute full 12 case matrix in isolated processes
         shell: bash
         run: |
