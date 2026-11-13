@@ -44,6 +44,7 @@ jobs:
           cmake --build root-build --target ROOTNTuple --parallel 4
       - uses: actions/cache/save@v4
         if: steps.root-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
         with:
           path: root-build
           key: rootntuple-5281bc2342c5-release-minimal-nocurl-v1
@@ -57,7 +58,8 @@ jobs:
           for lib in ROOTNTuple RIO Core; do
             test -f "$ROOTSYS/lib/lib${lib}.so" || { echo "Missing required library: $lib"; exit 2; }
           done
-          g++ -std=c++20 -O1 -g $(root-config --cflags) \
+          read -r -a root_cflags <<< "$(root-config --cflags)"
+          g++ "${root_cflags[@]}" -std=c++20 -O1 -g \
             -I"$ROOTSYS/include" validation/recheck_checksum_invariants.cxx \
             -L"$ROOTSYS/lib" -Wl,-rpath,"$ROOTSYS/lib" \
             -lROOTNTuple -lRIO -lCore -o /tmp/p1-master-matrix
