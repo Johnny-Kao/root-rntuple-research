@@ -65,15 +65,28 @@ jobs:
           if timeout 20s /tmp/p1-public public >public.log 2>&1; then status=0; else status=$?; fi
           echo "public,$status" | tee -a matrix.csv
           cat public.log
-      - name: Apply minimal patch and incrementally rebuild ROOTNTuple
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: root-p1-public-baseline
+          path: p1-results/baseline/
+          if-no-files-found: ignore
+      - name: Apply minimal patch and rebuild only changed ROOTNTuple object
         shell: bash
         run: |
           set -euo pipefail
+          # The compiled cache was produced from the same pinned source SHA.
+          # Fresh git checkout timestamps must not invalidate all cached objects.
+          find root-src -path root-src/.git -prune -o -type f -exec touch -t 202001010000 {} +
           git -C root-src apply "$GITHUB_WORKSPACE/patches/p1-source-checksum.patch"
-          cmake -S root-src -B root-build -G Ninja \
-            -Dminimal=ON -Droot7=ON -Dtesting=OFF -Dfail-on-missing=OFF -Dcurl=OFF -DCMAKE_BUILD_TYPE=Release
-          cmake --build root-build --target ROOTNTuple --parallel 4
           git -C root-src diff --check
+          # Fail before an expensive rebuild if cache is stale for other reasons.
+          ninja -C root-build -n ROOTNTuple | tee /tmp/root-p1-build-plan.txt
+          build_count=$(grep -c '^\\[' /tmp/root-p1-build-plan.txt || true)
+          echo "PLANNED_BUILD_ACTIONS=$build_count"
+          test "$build_count" -gt 0
+          test "$build_count" -le 30
+          cmake --build root-build --target ROOTNTuple --parallel 4
           git -C root-src diff --stat
       - name: Repeat same matrix with patched ROOTNTuple
         shell: bash
