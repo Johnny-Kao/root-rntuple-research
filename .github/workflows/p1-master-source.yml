@@ -82,7 +82,7 @@ jobs:
           git -C root-src diff --check
           # Fail before an expensive rebuild if cache is stale for other reasons.
           ninja -C root-build -n ROOTNTuple | tee /tmp/root-p1-build-plan.txt
-          build_count=$(grep -c '^\\[' /tmp/root-p1-build-plan.txt || true)
+          build_count=$(grep -c '^\[' /tmp/root-p1-build-plan.txt || true)
           echo "PLANNED_BUILD_ACTIONS=$build_count"
           test "$build_count" -gt 0
           test "$build_count" -le 30
