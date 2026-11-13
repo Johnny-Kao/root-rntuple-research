@@ -41,7 +41,7 @@ jobs:
           source root-build/bin/thisroot.sh
           echo "ROOT version: $(root-config --version)"
           echo "SOURCE SHA: $ROOT_SOURCE_SHA"
-          g++ -std=c++17 -O1 -g -I"$ROOTSYS/include" validation/recheck_checksum_invariants.cxx -o /tmp/p1-master-matrix $(root-config --cflags --libs) -lROOTNTuple
+          g++ -std=c++20 -O1 -g -I"$ROOTSYS/include" validation/recheck_checksum_invariants.cxx -o /tmp/p1-master-matrix $(root-config --cflags --libs) -lROOTNTuple
       - name: Execute full 12 case matrix in isolated processes
         shell: bash
         run: |
